@@ -5,3 +5,4 @@ pillow>=10.0
 opencv-python-headless>=4.8
 tqdm>=4.66
 # system dependency (not pip): ffmpeg / ffprobe must be on PATH
+gdown
