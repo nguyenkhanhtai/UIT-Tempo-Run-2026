@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Bẫy tín hiệu Ctrl+C (SIGINT) và diệt tất cả các tiến trình con
+trap 'echo "Đang dọn dẹp các tiến trình nền..."; kill $(jobs -p) 2>/dev/null; exit 1' SIGINT
+
 # Chuyển về thư mục gốc của project
 cd "$(dirname "$0")/.."
 
@@ -12,11 +15,11 @@ TASKS_FILE="dataset/Public_round_tasks.jsonl"
 OUT_FILE="submission.json"
 DEV="cuda:0"
 
-# Cấu hình Model mạnh nhất (PE-Core-bigG) để tối đa điểm số
-MODEL="PE-Core-bigG-14-448"
-PRETRAINED="meta"
-PRECISION="bf16"
-SHARDS=6
+# Cấu hình Model nhẹ (ViT-B-32) để tiết kiệm bộ nhớ
+MODEL="ViT-B-32"
+PRETRAINED="laion2b_s34b_b79k"
+PRECISION="fp32"
+SHARDS=2
 
 # echo "=========================================================="
 # echo "STAGE 1: Trích xuất Keyframes (Cắt ảnh từ Video)"
