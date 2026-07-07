@@ -6,7 +6,7 @@ import numpy as np
 
 
 class ClipModel:
-    def __init__(self, model_name="ViT-B-32", pretrained="laion2b_s34b_b79k", device=None):
+    def __init__(self, model_name="ViT-B-32", pretrained="laion2b_s34b_b79k", device=None, precision=None):
         import torch, open_clip
         # Disable cuDNN: ViT-B-32 is almost all matmul; its single patch-embed conv
         # otherwise needs a cuDNN workspace that fails ("unable to find an engine")
@@ -15,7 +15,7 @@ class ClipModel:
         self.torch = torch
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
-            model_name, pretrained=pretrained)
+            model_name, pretrained=pretrained, precision=precision)
         self.model = self.model.to(self.device).eval()
         self.tokenizer = open_clip.get_tokenizer(model_name)
         try:

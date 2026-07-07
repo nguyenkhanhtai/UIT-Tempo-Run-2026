@@ -49,6 +49,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--model", default="ViT-B-32")
     ap.add_argument("--pretrained", default="laion2b_s34b_b79k")
+    ap.add_argument("--precision", default=None)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--shard-index", type=int, default=0)
@@ -69,7 +70,7 @@ def main():
     print(f"[shard {args.shard_index}/{args.shard_count}] {len(mine)}/{len(vdirs)} videos", flush=True)
 
     from clip_model import ClipModel
-    clip = ClipModel(args.model, args.pretrained, device=args.device)
+    clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     print(f"[clip] {args.model}/{args.pretrained} on {args.device} dim={clip.dim}", flush=True)
 
     t0 = time.time(); done = nframes = failed = 0

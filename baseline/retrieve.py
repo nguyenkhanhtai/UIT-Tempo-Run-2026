@@ -40,6 +40,7 @@ def main():
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--model", default="ViT-B-32")
     p.add_argument("--pretrained", default="laion2b_s34b_b79k")
+    p.add_argument("--precision", default=None)
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--cand-keyframes", type=int, default=400)
     args = p.parse_args()
@@ -50,7 +51,7 @@ def main():
     print(f"[tasks] {len(tasks)}", flush=True)
 
     from clip_model import ClipModel
-    clip = ClipModel(args.model, args.pretrained, device=args.device)
+    clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     Q = clip.encode_texts([t["description"] for t in tasks])      # [T, D] fp32
 
     dev = args.device
