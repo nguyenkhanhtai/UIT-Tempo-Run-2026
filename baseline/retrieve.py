@@ -119,8 +119,8 @@ def main():
     T_all, N = Qt.shape[0], idx.shape[0]
     K = min(args.cand_keyframes, N)
 
-    # chunked top-K keyframes per query
-    CH = 100_000
+    # chunked top-K keyframes per query (Giảm xuống 10k để chống OOM khi số lượng Sub-query lớn)
+    CH = 10_000
     top_val = torch.full((T_all, K), float("-inf"), device=dev, dtype=torch.float32)
     top_idx = torch.zeros((T_all, K), device=dev, dtype=torch.long)
     t0 = time.time()
@@ -182,7 +182,11 @@ def main():
             causal_bonus = 0.0
             if v in v_sub_max:
                 subs_for_v = v_sub_max[v]
-                sub_bonus = sum(subs_for_v.values()) * 0.2
+                # Các câu phụ (sub queries) đóng vai trò booster với trọng số nghịch biến:
+                # Càng về sau (sub_id càng lớn), trọng số càng nhỏ (0.2 / sub_id).
+                for sid, sim in subs_for_v.items():
+                    decay_weight = 0.2 / sid
+                    sub_bonus += sim * decay_weight
                 
                 # Check causal order
                 if len(subs_for_v) > 1:
