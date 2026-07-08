@@ -64,6 +64,7 @@ uv run python baseline/retrieve.py \
   --tasks $TASKS_FILE \
   --out $OUT_FILE \
   --model $MODEL --pretrained $PRETRAINED --precision $PRECISION \
+  --max-window 15 \
   --device "cuda:0"
 
 # Cleanse RAM after retrieval
