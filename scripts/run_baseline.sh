@@ -19,11 +19,12 @@ NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l || echo 1)
 if [ "$NUM_GPUS" -eq 0 ]; then NUM_GPUS=1; fi
 echo "Detected $NUM_GPUS GPU(s)."
 
-# Lightweight model config (ViT-B-32) to save memory
-MODEL="ViT-B-32"
-PRETRAINED="laion2b_s34b_b79k"
+# model config
+MODEL="PE-Core-bigG-14-448"
+PRETRAINED="meta"
 PRECISION="fp16"
 SHARDS=4
+BATCH_SIZE=116
 
 echo "=========================================================="
 echo "STAGE 1: Extract Keyframes (Cut frames from Video)"
@@ -47,7 +48,7 @@ for i in $(seq 0 $((SHARDS-1))); do
   uv run python baseline/extract_embed.py \
     --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
     --model $MODEL --pretrained $PRETRAINED --precision $PRECISION \
-    --shard-index $i --shard-count $SHARDS &
+    --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE &
 done
 wait
 echo "-> Finished embedding!"
