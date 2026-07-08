@@ -51,7 +51,7 @@ def main():
     ap.add_argument("--pretrained", default="laion2b_s34b_b79k")
     ap.add_argument("--precision", default=None)
     ap.add_argument("--device", default="cuda:0")
-    ap.add_argument("--batch-size", type=int, default=64)
+    ap.add_argument("--batch-size", type=int, default=100)
     ap.add_argument("--shard-index", type=int, default=0)
     ap.add_argument("--shard-count", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0, help="debug: cap #videos")
@@ -89,6 +89,7 @@ def main():
             nframes += len(imgs)
         except Exception as ex:
             failed += 1
+            print(f"[shard {args.shard_index}] Exception: {ex}")
             with open(fail_log, "a") as f:
                 f.write(f"{vid}\t{ex}\n")
         done += 1
@@ -97,6 +98,9 @@ def main():
             print(f"[shard {args.shard_index}] {done}/{len(mine)} | {nframes} frames | "
                   f"fail={failed} | {done/el*60:.0f} vids/min | ETA {(len(mine)-done)/max(done/el,1e-9)/60:.0f}min",
                   flush=True)
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     print(f"[shard {args.shard_index}] DONE {done} videos, {nframes} frames, {failed} failed, "
           f"{time.time()-t0:.0f}s", flush=True)
 

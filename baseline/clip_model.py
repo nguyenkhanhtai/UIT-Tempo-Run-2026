@@ -6,7 +6,10 @@ import numpy as np
 
 
 class ClipModel:
-    def __init__(self, model_name="ViT-B-32", pretrained="laion2b_s34b_b79k", device=None, precision=None):
+    def __init__(self, model_name="ViT-B-32", 
+                pretrained="laion2b_s34b_b79k", 
+                device=None, 
+                precision=None):
         import torch, open_clip
         # Disable cuDNN: ViT-B-32 is almost all matmul; its single patch-embed conv
         # otherwise needs a cuDNN workspace that fails ("unable to find an engine")
@@ -31,7 +34,9 @@ class ClipModel:
             batch = [self.preprocess(im) for im in pil_images[i:i + batch_size]]
             with torch.no_grad():
                 x = torch.stack(batch).to(self.device)
-                f = self.model.encode_image(x)
+                device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+                with torch.autocast(device_type=device_type):
+                    f = self.model.encode_image(x)
                 f = f / f.norm(dim=-1, keepdim=True)
                 feats.append(f.float().cpu().numpy().astype(np.float16))
         return np.concatenate(feats, 0) if feats else np.zeros((0, self.dim), np.float16)
@@ -42,7 +47,9 @@ class ClipModel:
         for i in range(0, len(texts), batch_size):
             toks = self.tokenizer(texts[i:i + batch_size]).to(self.device)
             with torch.no_grad():
-                f = self.model.encode_text(toks)
+                device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+                with torch.autocast(device_type=device_type):
+                    f = self.model.encode_text(toks)
                 f = f / f.norm(dim=-1, keepdim=True)
                 feats.append(f.float().cpu().numpy().astype(np.float32))
         return np.concatenate(feats, 0) if feats else np.zeros((0, self.dim), np.float32)
