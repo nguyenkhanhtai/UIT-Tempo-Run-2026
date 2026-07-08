@@ -3,20 +3,20 @@ import torch
 
 def clean_memory():
     """
-    Hàm tiện ích giúp dọn dẹp bộ nhớ RAM của Python và VRAM của GPU (PyTorch).
-    Rất hữu ích khi cần giải phóng bộ nhớ tồn đọng trước khi tải một model mới
-    vào bộ nhớ hoặc sau khi xử lý xong một khối lượng dữ liệu lớn.
+    Utility function to clean up Python's RAM and GPU VRAM (PyTorch).
+    Very useful for freeing up residual memory before loading a new model
+    into memory or after processing a large amount of data.
     """
-    # 1. Chạy Garbage Collector của Python để xóa các biến không còn sử dụng trên RAM
+    # 1. Run Python's Garbage Collector to delete unused variables in RAM
     gc.collect()
     
-    # 2. Xóa bộ nhớ cache trên GPU (nếu dùng PyTorch và CUDA)
+    # 2. Clear GPU cache (if using PyTorch and CUDA)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
-        print("[Memory] Đã dọn dẹp RAM và GPU VRAM thành công.")
+        print("[Memory] Successfully cleaned up RAM and GPU VRAM.")
     else:
-        print("[Memory] Đã dọn dẹp RAM thành công (Không tìm thấy GPU CUDA).")
+        print("[Memory] Successfully cleaned up RAM (CUDA GPU not found).")
 
 if __name__ == "__main__":
     clean_memory()

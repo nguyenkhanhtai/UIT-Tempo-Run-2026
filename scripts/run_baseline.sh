@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Bẫy tín hiệu Ctrl+C (SIGINT) và diệt tất cả các tiến trình con
-trap 'echo "Đang dọn dẹp các tiến trình nền..."; kill $(jobs -p) 2>/dev/null; exit 1' SIGINT
+# Trap Ctrl+C (SIGINT) signal and kill all child processes
+trap 'echo "Cleaning up background processes..."; kill $(jobs -p) 2>/dev/null; exit 1' SIGINT
 
-# Chuyển về thư mục gốc của project
+# Move to project root directory
 cd "$(dirname "$0")/.."
 
-# Đường dẫn thư mục
+# Directory paths
 DATASET_ROOT="dataset/Video_V3C"
 KF_DIR="keyframes"
 INDEX_DIR="artifacts/index"
@@ -15,16 +15,16 @@ TASKS_FILE="dataset/Public_round_tasks.jsonl"
 OUT_FILE="submission.json"
 DEV="cuda:0"
 
-# Cấu hình Model nhẹ (ViT-B-32) để tiết kiệm bộ nhớ
+# Lightweight model config (ViT-B-32) to save memory
 MODEL="ViT-B-32"
 PRETRAINED="laion2b_s34b_b79k"
-PRECISION="fp32"
+PRECISION="fp16"
 SHARDS=2
 
 # echo "=========================================================="
-# echo "STAGE 1: Trích xuất Keyframes (Cắt ảnh từ Video)"
+# echo "STAGE 1: Extract Keyframes (Cut frames from Video)"
 # echo "=========================================================="
-# # Chạy song song 6 tiến trình (shards) để tăng tốc độ cắt ảnh
+# # Run multiple processes (shards) in parallel to speed up extraction
 # for i in $(seq 0 $((SHARDS-1))); do
 #   uv run python baseline/extract_keyframes.py \
 #     --dataset-root $DATASET_ROOT/V3C1 \
@@ -32,12 +32,12 @@ SHARDS=2
 #     --out $KF_DIR --shard-index $i --shard-count $SHARDS &
 # done
 # wait
-# echo "-> Hoàn thành cắt ảnh!"
+# echo "-> Finished keyframe extraction!"
 
 echo "=========================================================="
-echo "STAGE 2: Trích xuất Embeddings (Nhúng Vector bằng $MODEL)"
+echo "STAGE 2: Extract Embeddings (Vector Encoding with $MODEL)"
 echo "=========================================================="
-# Chạy song song 6 tiến trình nhúng vector
+# Run multiple embedding processes in parallel
 for i in $(seq 0 $((SHARDS-1))); do
   uv run python baseline/extract_embed.py \
     --keyframes $KF_DIR --out $INDEX_DIR --device $DEV \
@@ -45,10 +45,10 @@ for i in $(seq 0 $((SHARDS-1))); do
     --shard-index $i --shard-count $SHARDS &
 done
 wait
-echo "-> Hoàn thành nhúng vector!"
+echo "-> Finished embedding!"
 
 echo "=========================================================="
-echo "STAGE 3: Retrieval (Truy xuất và tạo file submission.json)"
+echo "STAGE 3: Retrieval (Query and generate submission.json)"
 echo "=========================================================="
 uv run python baseline/retrieve.py \
   --shards $INDEX_DIR/shards \
@@ -58,5 +58,5 @@ uv run python baseline/retrieve.py \
   --device $DEV
 
 echo "=========================================================="
-echo "HOÀN TẤT! File kết quả nộp bài đã được lưu tại: $OUT_FILE"
+echo "DONE! Submission file saved at: $OUT_FILE"
 echo "=========================================================="
