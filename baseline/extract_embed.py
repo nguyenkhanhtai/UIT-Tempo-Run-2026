@@ -73,7 +73,7 @@ def main():
     clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     print(f"[clip] {args.model}/{args.pretrained} on {args.device} dim={clip.dim}", flush=True)
 
-    t0 = time.time(); done = nframes = failed = 0
+    t0 = time.time(); t_last = t0; done = nframes = failed = 0
     for vdir in mine:
         vid = vdir.name
         out_npz = shard_dir / f"{vid}.npz"
@@ -95,9 +95,12 @@ def main():
         done += 1
         if done % 50 == 0:
             el = time.time() - t0
+            batch_time = time.time() - t_last
+            recent_vids_per_sec = 50 / max(batch_time, 1e-9)
             print(f"[shard {args.shard_index}] {done}/{len(mine)} | {nframes} frames | "
-                  f"fail={failed} | {done/el*60:.0f} vids/min | ETA {(len(mine)-done)/max(done/el,1e-9)/60:.0f}min",
+                  f"fail={failed} | {recent_vids_per_sec*60:.0f} vids/min | 50_vids_time={batch_time:.1f}s | ETA {(len(mine)-done)/recent_vids_per_sec/60:.0f}min",
                   flush=True)
+            t_last = time.time()
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
