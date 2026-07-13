@@ -42,8 +42,8 @@ VLMS=(
   # "EVA02-L-14,merged2b_s4b_b131k"
 )
 PRECISION="fp16"
-OCR_ENGINE="transformers"
-OCR_MODEL="stepfun-ai/GOT-OCR2_0"
+OCR_ENGINE="easyocr"
+OCR_MODEL="easyocr"
 OD_ENGINE="yolo"
 # yolov12n, yolov12s, yolov12m (YOLOv12 SOTA mới nhất dùng Area Attention), yolo11m (Ultralytics), yolov10m
 OD_MODEL="yolov12m.pt"
