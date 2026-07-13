@@ -22,6 +22,7 @@ dependencies = [
     "einops",
     "paddleocr",
     "paddlepaddle-gpu",
+    "setuptools",
 ]
 
 [[tool.uv.index]]
