@@ -57,9 +57,13 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="debug: cap #videos")
     args = ap.parse_args()
 
-    shard_dir = Path(args.out) / "shards"
+    # Save shards in a model-specific subdirectory
+    model_safe = args.model.replace("/", "_")
+    pre_safe = args.pretrained.replace("/", "_") if args.pretrained else "none"
+    model_dir_name = f"{model_safe}_{pre_safe}"
+    shard_dir = Path(args.out) / "shards" / model_dir_name
     shard_dir.mkdir(parents=True, exist_ok=True)
-    fail_log = Path(args.out) / f"failed_embed_shard{args.shard_index}.txt"
+    fail_log = Path(args.out) / f"failed_embed_{model_dir_name}_shard{args.shard_index}.txt"
 
     vdirs = list_keyframe_dirs(args.keyframes)
     if not vdirs:

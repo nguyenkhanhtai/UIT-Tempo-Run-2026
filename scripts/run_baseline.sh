@@ -20,9 +20,15 @@ if [ "$NUM_GPUS" -eq 0 ]; then NUM_GPUS=1; fi
 echo "Detected $NUM_GPUS GPU(s)."
 
 # model config
-MODEL="PE-Core-bigG-14-448"
-PRETRAINED="meta"
+VLMS=(
+  "PE-Core-bigG-14-448,meta"
+  # Add more models here for ensembling, e.g.:
+  # "ViT-B-32,laion2b_s34b_b79k" 
+  # "ViT-B-16-SigLIP,webli"
+)
 PRECISION="fp16"
+OCR_MODEL="transformers"
+OD_MODEL="yolo"
 SHARDS=4
 BATCH_SIZE=116
 
@@ -40,21 +46,32 @@ wait
 echo "-> Finished keyframe extraction!"
 
 echo "=========================================================="
-echo "STAGE 2: Extract Embeddings (Vector Encoding with $MODEL)"
+echo "STAGE 2: Extract Embeddings (Vector Encoding with VLMs)"
 echo "=========================================================="
-# Run multiple embedding processes in parallel, distributing across GPUs
-for i in $(seq 0 $((SHARDS-1))); do
-  GPU_ID=$((i % NUM_GPUS))
-  uv run python baseline/extract_embed.py \
-    --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
-    --model $MODEL --pretrained $PRETRAINED --precision $PRECISION \
-    --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE &
+for VLM in "${VLMS[@]}"; do
+  # parse model and pretrained
+  MODEL="${VLM%%,*}"
+  PRETRAINED="${VLM##*,}"
+  if [ "$MODEL" = "$PRETRAINED" ]; then
+      PRETRAINED=""
+  fi
+  
+  echo ">>> Extracting features using $MODEL ($PRETRAINED) <<<"
+  # Run multiple embedding processes in parallel, distributing across GPUs
+  for i in $(seq 0 $((SHARDS-1))); do
+    GPU_ID=$((i % NUM_GPUS))
+    uv run python baseline/extract_embed.py \
+      --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
+      --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
+      --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE &
+  done
+  wait
+  
+  # Free memory before next model
+  uv run python scripts/clean_ram.py
 done
-wait
 echo "-> Finished embedding!"
 
-# Dọn dẹp RAM/VRAM sau khi hoàn thành nhúng vector
-uv run python scripts/clean_ram.py
 
 echo "=========================================================="
 echo "STAGE 3: Extract Metadata (OCR & YOLO)"
@@ -64,7 +81,7 @@ for i in $(seq 0 $((SHARDS-1))); do
   GPU_ID=$((i % NUM_GPUS))
   uv run python baseline/extract_metadata.py \
     --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
-    --ocr-model easyocr --od-model yolo \
+    --ocr-model $OCR_MODEL --od-model $OD_MODEL \
     --shard-index $i --shard-count $SHARDS &
 done
 wait
@@ -81,8 +98,8 @@ uv run python baseline/retrieve.py \
   --metadata $INDEX_DIR/metadata \
   --tasks $TASKS_FILE \
   --out $OUT_FILE \
-  --model $MODEL --pretrained $PRETRAINED --precision $PRECISION \
-  --max-window 15 \
+  --vlms "${VLMS[@]}" \
+  --precision $PRECISION \
   --device "cuda:0"
 
 # Cleanse RAM after retrieval
