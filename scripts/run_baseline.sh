@@ -57,10 +57,28 @@ echo "-> Finished embedding!"
 uv run python scripts/clean_ram.py
 
 echo "=========================================================="
-echo "STAGE 3: Retrieval (Query and generate submission.json)"
+echo "STAGE 3: Extract Metadata (OCR & YOLO)"
+echo "=========================================================="
+# Run multiple metadata extraction processes in parallel
+for i in $(seq 0 $((SHARDS-1))); do
+  GPU_ID=$((i % NUM_GPUS))
+  uv run python baseline/extract_metadata.py \
+    --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
+    --ocr-model easyocr --od-model yolo \
+    --shard-index $i --shard-count $SHARDS &
+done
+wait
+echo "-> Finished metadata extraction!"
+
+# Dọn dẹp RAM/VRAM
+uv run python scripts/clean_ram.py
+
+echo "=========================================================="
+echo "STAGE 4: Retrieval (Query and generate submission.json)"
 echo "=========================================================="
 uv run python baseline/retrieve.py \
   --shards $INDEX_DIR/shards \
+  --metadata $INDEX_DIR/metadata \
   --tasks $TASKS_FILE \
   --out $OUT_FILE \
   --model $MODEL --pretrained $PRETRAINED --precision $PRECISION \
