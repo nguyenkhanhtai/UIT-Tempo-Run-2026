@@ -19,6 +19,7 @@ dependencies = [
     "torchvision",
     "verovio>=6.2.1",
     "tiktoken>=0.13.0",
+    "einops",
 ]
 
 [[tool.uv.index]]

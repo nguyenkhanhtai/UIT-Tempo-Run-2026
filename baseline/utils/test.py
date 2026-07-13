@@ -46,6 +46,12 @@ def main():
         ocr = get_ocr_model(engine=args.engine, model_name=args.model, device=args.device, use_gpu='cuda' in args.device)
         print(f"[RUNNING] Extracting OCR features for {len(imgs)} images...")
         results = ocr.extract(imgs)
+        
+        # Free RAM/VRAM immediately after extraction
+        del ocr
+        import gc; gc.collect()
+        import torch; torch.cuda.empty_cache()
+        
         print("\n=== OCR RESULTS ===")
         for path, res in zip(valid_paths, results):
             print(f"\n--- {os.path.basename(path)} ---")
@@ -56,6 +62,12 @@ def main():
         od = get_od_model(engine=args.engine, model_name=args.model, device=args.device)
         print(f"[RUNNING] Extracting Objects for {len(imgs)} images...")
         results = od.extract(imgs)
+        
+        # Free RAM/VRAM immediately after extraction
+        del od
+        import gc; gc.collect()
+        import torch; torch.cuda.empty_cache()
+        
         print("\n=== OBJECT DETECTION RESULTS ===")
         for path, res in zip(valid_paths, results):
             print(f"\n--- {os.path.basename(path)} ---")

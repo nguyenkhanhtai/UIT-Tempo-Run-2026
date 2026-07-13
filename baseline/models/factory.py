@@ -4,6 +4,7 @@ import importlib
 OCR_MODELS = {
     "easyocr": ("models.ocr.easyocr_model", "EasyOCRModel"),
     "transformers": ("models.ocr.transformers_ocr_model", "TransformersOCRModel"),
+    "florence2": ("models.ocr.florence2_ocr_model", "Florence2OCRModel"),
 }
 
 # Registry of available Object Detection models
