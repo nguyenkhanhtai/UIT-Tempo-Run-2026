@@ -3,6 +3,11 @@ import torch
 
 class Florence2OCRModel(BaseOCR):
     def __init__(self, model_name='microsoft/Florence-2-large', device='cuda:0', **kwargs):
+        # Mock flash_attn to prevent ImportError from transformers dynamic module check
+        import sys, types
+        if "flash_attn" not in sys.modules:
+            sys.modules["flash_attn"] = types.ModuleType("flash_attn")
+            
         from transformers import AutoProcessor, AutoModelForCausalLM
         self.device = device
         self.model_name = model_name
