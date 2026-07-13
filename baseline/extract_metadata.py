@@ -53,17 +53,9 @@ def main():
     # Initialize models via factory/imports
     print(f"[init] Loading OCR ({args.ocr_model}) and OD ({args.od_model}) models...", flush=True)
     
-    if args.ocr_model == "easyocr":
-        from models.ocr.easyocr_model import EasyOCRModel
-        ocr = EasyOCRModel(use_gpu='cuda' in args.device)
-    else:
-        raise ValueError(f"Unknown OCR model: {args.ocr_model}")
-        
-    if args.od_model == "yolo":
-        from models.object_detection.yolo_model import YOLOModel
-        od = YOLOModel(device=args.device)
-    else:
-        raise ValueError(f"Unknown OD model: {args.od_model}")
+    from models.factory import get_ocr_model, get_od_model
+    ocr = get_ocr_model(args.ocr_model, device=args.device, use_gpu='cuda' in args.device)
+    od = get_od_model(args.od_model, device=args.device)
 
     t0 = time.time(); done = nframes = failed = 0
     
