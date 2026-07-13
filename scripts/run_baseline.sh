@@ -45,7 +45,8 @@ PRECISION="fp16"
 OCR_ENGINE="transformers"
 OCR_MODEL="stepfun-ai/GOT-OCR2_0"
 OD_ENGINE="yolo"
-OD_MODEL="yolov8x.pt"
+# yolov12n, yolov12s, yolov12m (YOLOv12 SOTA mới nhất dùng Area Attention), yolo11m (Ultralytics), yolov10m
+OD_MODEL="yolov12m.pt"
 SHARDS=4
 BATCH_SIZE=116
 
