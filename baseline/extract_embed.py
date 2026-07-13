@@ -102,6 +102,8 @@ def main():
                   flush=True)
             t_last = time.time()
         import torch
+        import gc
+        gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     print(f"[shard {args.shard_index}] DONE {done} videos, {nframes} frames, {failed} failed, "
