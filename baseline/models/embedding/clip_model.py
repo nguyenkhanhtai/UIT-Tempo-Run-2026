@@ -29,7 +29,7 @@ class ClipModel(BaseEmbedding):
         feats = []
         for i in range(0, len(pil_images), batch_size):
             batch = [self.preprocess(im) for im in pil_images[i:i + batch_size]]
-            with torch.no_grad():
+            with torch.no_grad(), torch.autocast(device_type="cuda" if "cuda" in self.device else "cpu"):
                 x = torch.stack(batch).to(self.device)
                 f = self.model.encode_image(x)
                 f = f / f.norm(dim=-1, keepdim=True)
@@ -41,7 +41,7 @@ class ClipModel(BaseEmbedding):
         feats = []
         for i in range(0, len(texts), batch_size):
             toks = self.tokenizer(texts[i:i + batch_size]).to(self.device)
-            with torch.no_grad():
+            with torch.no_grad(), torch.autocast(device_type="cuda" if "cuda" in self.device else "cpu"):
                 f = self.model.encode_text(toks)
                 f = f / f.norm(dim=-1, keepdim=True)
                 feats.append(f.float().cpu().numpy().astype(np.float32))
