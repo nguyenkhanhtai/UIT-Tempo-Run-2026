@@ -69,7 +69,7 @@ def main():
         mine = mine[:args.limit]
     print(f"[shard {args.shard_index}/{args.shard_count}] {len(mine)}/{len(vdirs)} videos", flush=True)
 
-    from clip_model import ClipModel
+    from models.embedding.clip_model import ClipModel
     clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     print(f"[clip] {args.model}/{args.pretrained} on {args.device} dim={clip.dim}", flush=True)
 
