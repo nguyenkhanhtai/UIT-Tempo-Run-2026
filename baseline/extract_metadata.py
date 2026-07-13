@@ -95,6 +95,12 @@ def main():
                 fl.write(f"{vid}\t{str(e)}\n")
             print(f"  ERROR {vid}: {e}")
             
+        import torch
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
     print(f"Finished {done} videos ({nframes} frames), {failed} errors in {time.time()-t0:.0f}s")
 
 if __name__ == "__main__":

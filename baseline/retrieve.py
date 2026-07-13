@@ -10,77 +10,19 @@ Added features (Merged):
 - OOP model loading.
 - OCR Hard Filtering.
 - KMeans Clustering for Diversity.
+
+Refactored to use modular architecture under `baseline/retrieval/`.
 """
 from __future__ import annotations
-import argparse, glob, json, os, time, re
-from pathlib import Path
-import numpy as np
-import collections
+import argparse, json
+import torch
 
-def parse_queries(tasks, max_window=15):
-    all_queries = []
-    task_mapping = [] # (ti, is_main, sub_id)
-    
-    for ti, task in enumerate(tasks):
-        desc = task["description"]
-        all_queries.append(desc)
-        task_mapping.append((ti, True, 0)) # Main query
-        
-        words = desc.split()
-        if len(words) > max_window:
-            S = max(1, max_window // 2) # stride
-            sub_idx = 1
-            for i in range(0, len(words), S):
-                if i + max_window >= len(words):
-                    chunk = words[-max_window:]
-                    if len(chunk) == max_window:
-                        sub_q = " ".join(chunk)
-                        all_queries.append(sub_q)
-                        task_mapping.append((ti, False, sub_idx))
-                        sub_idx += 1
-                    break
-                
-                chunk = words[i : i + max_window]
-                if len(chunk) == max_window:
-                    sub_q = " ".join(chunk)
-                    all_queries.append(sub_q)
-                    task_mapping.append((ti, False, sub_idx))
-                    sub_idx += 1
-    return all_queries, task_mapping
-
-
-def load_index(shard_dir, meta_dir=None):
-    embs, vids, ts = [], [], []
-    metadata = {}
-    
-    if meta_dir and os.path.exists(meta_dir):
-        print(f"[index] Loading metadata from {meta_dir}...", flush=True)
-        for f in glob.glob(os.path.join(meta_dir, "*.jsonl")):
-            vid = Path(f).stem
-            metadata[vid] = {}
-            with open(f, 'r', encoding='utf-8') as jf:
-                for line in jf:
-                    data = json.loads(line)
-                    metadata[vid][data["ts_ms"]] = data
-
-    files = sorted(glob.glob(os.path.join(shard_dir, "*.npz")))
-    for f in files:
-        d = np.load(f)
-        e = d["emb"]
-        if e.shape[0] == 0:
-            continue
-        embs.append(e)
-        vid = Path(f).stem
-        vids.extend([vid] * e.shape[0])
-        ts.append(d["ts_ms"])
-    if not embs:
-        raise SystemExit(f"no shards in {shard_dir}")
-    emb = np.concatenate(embs, 0)            # [N, D] fp16
-    ts = np.concatenate(ts, 0).astype(np.int32)
-    vids = np.array(vids)
-    print(f"[index] {emb.shape[0]} keyframes from {len(files)} videos, dim={emb.shape[1]}", flush=True)
-    return emb, vids, ts, metadata
-
+from retrieval.loader import load_index
+from retrieval.temporal import smooth_features
+from retrieval.parser import parse_queries
+from retrieval.scorer import compute_similarity, aggregate_scores
+from retrieval.postprocess import apply_clustering
+from models.embedding.clip_model import ClipModel
 
 def main():
     p = argparse.ArgumentParser()
@@ -94,190 +36,53 @@ def main():
     p.add_argument("--precision", default=None)
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--cand-keyframes", type=int, default=2000)
-    p.add_argument("--max-window", type=int, default=15)
     args = p.parse_args()
 
-    import torch
-    from sklearn.cluster import KMeans
-
+    # 1. Load Data
     emb, vids, ts, metadata = load_index(args.shards, args.metadata)
     
-    print("[retrieve] Smoothing features temporally...", flush=True)
-    emb_prev = np.roll(emb, 1, axis=0)
-    emb_next = np.roll(emb, -1, axis=0)
+    # 2. Temporal Smoothing
+    emb_smoothed = smooth_features(emb, vids)
     
-    same_prev = (vids == np.roll(vids, 1))
-    same_next = (vids == np.roll(vids, -1))
-    
-    smoothed = emb.astype(np.float32).copy()
-    emb_prev = emb_prev.astype(np.float32)
-    emb_next = emb_next.astype(np.float32)
-    
-    mask_mid = same_prev & same_next
-    smoothed[mask_mid] = 0.6 * smoothed[mask_mid] + 0.2 * emb_prev[mask_mid] + 0.2 * emb_next[mask_mid]
-    
-    mask_left = same_next & ~same_prev
-    smoothed[mask_left] = 0.8 * smoothed[mask_left] + 0.2 * emb_next[mask_left]
-    
-    mask_right = same_prev & ~same_next
-    smoothed[mask_right] = 0.8 * smoothed[mask_right] + 0.2 * emb_prev[mask_right]
-    
-    norms = np.linalg.norm(smoothed, axis=1, keepdims=True)
-    emb_smoothed = np.where(norms > 1e-9, smoothed / norms, smoothed).astype(np.float16)
-
     tasks = [json.loads(l) for l in open(args.tasks)]
     print(f"[tasks] {len(tasks)}", flush=True)
 
-    from models.embedding.clip_model import ClipModel
+    # 3. Parse Queries & Encode
+    all_queries, task_mapping = parse_queries(tasks)
+    
     clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
-    all_queries, task_mapping = parse_queries(tasks, args.max_window)
     Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
+    
+    # Free up RAM/VRAM before loading massive indexes
+    del clip
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
+    # 4. Compute GPU Similarity (Dual Softmax)
     dev = args.device
-    idx = torch.from_numpy(emb_smoothed).to(dev).float()           # fp32 [N, D]
-    Qt = torch.from_numpy(Q).to(dev).float()                       # fp32 [T_all, D]
+    idx = torch.from_numpy(emb_smoothed).to(dev).float()
+    Qt = torch.from_numpy(Q).to(dev).float()
     T_all, N = Qt.shape[0], idx.shape[0]
     K = min(args.cand_keyframes, N)
+    
+    top_idx, top_val = compute_similarity(Qt, idx, T_all, N, K, dev)
 
-    # chunked top-K keyframes per query (Giảm xuống 10k để chống OOM khi số lượng Sub-query lớn)
-    CH = 10_000
-    top_val = torch.full((T_all, K), float("-inf"), device=dev, dtype=torch.float32)
-    top_idx = torch.zeros((T_all, K), device=dev, dtype=torch.long)
-    t0 = time.time()
-    for s in range(0, N, CH):
-        e = min(s + CH, N)
-        sims = Qt @ idx[s:e].T                                     # [T_all, chunk]
-        
-        # Dual Softmax (Mean Centering)
-        sims = sims - sims.mean(dim=0, keepdim=True)
-        
-        cat_v = torch.cat([top_val, sims], 1)
-        cat_i = torch.cat([top_idx, torch.arange(s, e, device=dev).expand(T_all, e - s)], 1)
-        top_val, sel = cat_v.topk(K, dim=1)
-        top_idx = torch.gather(cat_i, 1, sel)
-    print(f"[retrieve] scored {N} keyframes x {T_all} total queries in {time.time()-t0:.0f}s", flush=True)
+    # 5. Aggregate Scores (Base + Subs + Causal Bonus + Hard Filter)
+    all_candidates = aggregate_scores(
+        task_mapping, top_idx, top_val, tasks, vids, ts, emb, metadata
+    )
 
-    top_idx = top_idx.cpu().numpy()
-    top_val = top_val.float().cpu().numpy()
-
-    task_results = collections.defaultdict(lambda: {'main': None, 'subs': []})
-    for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
-        if is_main:
-            task_results[ti]['main'] = (top_idx[qi], top_val[qi])
-        else:
-            task_results[ti]['subs'].append((sub_id, top_idx[qi], top_val[qi]))
-
+    # 6. Postprocess (Clustering & Formatting)
     preds = []
-    for ti, task in enumerate(tasks):
-        desc = task["description"]
-        max_preds = task.get("max_predictions", args.top_videos)
-        
-        # Query parsing for OCR
-        quotes = re.findall(r'"([^"]*)"', desc)
-        ocr_query = [q.lower() for q in quotes]
-        
-        main_rows, main_sims = task_results[ti]['main']
-        subs = task_results[ti]['subs']
-        
-        # 1. Thu thập điểm của Câu Chính (Base Score)
-        v_main_scores = collections.defaultdict(list)
-        v_main_centers = {}
-        v_main_rows = {}
-        for r, sim in zip(main_rows, main_sims):
-            v = str(vids[r])
-            center = int(ts[r])
-            
-            # [HARD FILTER OCR]
-            if ocr_query and v in metadata and center in metadata[v]:
-                meta_ocr = metadata[v][center].get("ocr", "")
-                if not all(q in meta_ocr for q in ocr_query):
-                    continue
-                    
-            v_main_scores[v].append(float(sim))
-            if v not in v_main_centers:
-                v_main_centers[v] = center
-                v_main_rows[v] = r
-                
-        # 2. Thu thập điểm của các Câu Phụ
-        v_sub_max = collections.defaultdict(lambda: collections.defaultdict(float))
-        v_sub_center = collections.defaultdict(dict)
-        for sub_id, rows, sims in subs:
-            for r, sim in zip(rows, sims):
-                v = str(vids[r])
-                if sub_id not in v_sub_max[v] or sim > v_sub_max[v][sub_id]:
-                    v_sub_max[v][sub_id] = float(sim)
-                    v_sub_center[v][sub_id] = int(ts[r])
-                    
-        # 3. Tính điểm tổng hợp (Base + Sub Booster + Causal Bonus)
-        candidates = []
-        for v, m_scores in v_main_scores.items():
-            main_sc = m_scores[0]
-            main_bonus = sum(m_scores[1:4]) / len(m_scores[1:4]) * 0.1 if len(m_scores) > 1 else 0.0
-            base_score = main_sc + main_bonus
-            
-            sub_bonus = 0.0
-            causal_bonus = 0.0
-            if v in v_sub_max:
-                subs_for_v = v_sub_max[v]
-                for sid, sim in subs_for_v.items():
-                    decay_weight = 0.2 / sid
-                    sub_bonus += sim * decay_weight
-                
-                if len(subs_for_v) > 1:
-                    ordered = True
-                    sorted_sub_ids = sorted(subs_for_v.keys())
-                    for i in range(len(sorted_sub_ids) - 1):
-                        id1 = sorted_sub_ids[i]
-                        id2 = sorted_sub_ids[i+1]
-                        if v_sub_center[v][id1] >= v_sub_center[v][id2]:
-                            ordered = False
-                            break
-                    if ordered:
-                        causal_bonus = abs(base_score) * 0.1
-                        
-            final_sc = base_score + sub_bonus + causal_bonus
-            candidates.append({
-                "video_id": v,
-                "frame_ms": v_main_centers[v],
-                "sim": final_sc,
-                "feat": emb[v_main_rows[v]] # Note: use raw emb for clustering, not smoothed
-            })
-            
-        candidates.sort(key=lambda x: x["sim"], reverse=True)
-        
-        # 4. KMeans Clustering
-        num_clusters = min(max_preds, len(candidates))
-        if num_clusters > 1:
-            X = np.array([c["feat"] for c in candidates])
-            kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10).fit(X)
-            labels = kmeans.labels_
-            
-            clusters = {i: [] for i in range(num_clusters)}
-            for i, c in enumerate(candidates):
-                clusters[labels[i]].append(c)
-                
-            final_results = []
-            for i in range(num_clusters):
-                if clusters[i]:
-                    best_in_cluster = sorted(clusters[i], key=lambda x: x["sim"], reverse=True)[0]
-                    final_results.append(best_in_cluster)
-                    
-            final_results = sorted(final_results, key=lambda x: x["sim"], reverse=True)
-        else:
-            final_results = candidates[:max_preds]
-            
-        results = []
-        for rank, res in enumerate(final_results[:max_preds], 1):
-            results.append({
-                "rank": rank, "video_id": res["video_id"],
-                "frame_ms": res["frame_ms"],
-            })
-        preds.append({"task_id": task["task_id"], "results": results})
+    for task, candidates in all_candidates:
+        res = apply_clustering(task, candidates, args.top_videos)
+        preds.append(res)
 
     sub = {"predictions": preds}
     json.dump(sub, open(args.out, "w"))
     print(f"[done] wrote {args.out} ({len(preds)} tasks)", flush=True)
-
 
 if __name__ == "__main__":
     main()
