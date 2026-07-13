@@ -19,3 +19,13 @@ __pycache__/
 
 # dataset
 dataset/
+
+# visualizations & final submissions
+figures/
+submission/
+*.zip
+
+# virtual environments
+.venv/
+venv/
+env/
