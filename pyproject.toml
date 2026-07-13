@@ -14,7 +14,7 @@ dependencies = [
     "easyocr",
     "ultralytics",
     "scikit-learn",
-    "transformers",
+    "transformers<4.44",
     "accelerate",
     "torchvision",
     "verovio>=6.2.1",
