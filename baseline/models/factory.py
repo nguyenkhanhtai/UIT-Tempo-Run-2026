@@ -12,13 +12,17 @@ def get_ocr_model(engine: str, **kwargs):
         return Florence2OCRModel(model_name='microsoft/Florence-2-base', **{k: v for k, v in kwargs.items() if k != 'model_name'})
     elif engine == 'paddleocr':
         from .ocr.paddleocr_model import PaddleOCRModel
+        return PaddleOCRModel(**kwargs)
     elif engine == 'easyocr':
         from .ocr.easyocr_model import EasyOCRModel
         return EasyOCRModel(**kwargs)
-        return PaddleOCRModel(**kwargs)
     else:
         raise ValueError(f"Unknown OCR engine: {engine}. Available: vintern, florence2, florence2_base, paddleocr, easyocr")
 
-def get_od_model(model_name: str, **kwargs):
-    from .yolo.yolov8_model import YOLOv8Model
-    return YOLOv8Model(model_name=model_name, **kwargs)
+def get_od_model(engine: str, **kwargs):
+    engine = engine.lower()
+    if engine == 'yolo':
+        from .object_detection.yolo_model import YOLOModel
+        return YOLOModel(**kwargs)
+    else:
+        raise ValueError(f"Unknown OD engine: {engine}. Available: yolo")

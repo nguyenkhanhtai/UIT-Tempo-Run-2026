@@ -55,7 +55,9 @@ def main():
     # Initialize models via factory/imports
     print(f"[init] Loading OCR ({args.ocr_engine}: {args.ocr_model}) and OD ({args.od_engine}: {args.od_model}) models...", flush=True)
     
-    from models.factory import get_ocr_model, get_od_model
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from baseline.models.factory import get_ocr_model, get_od_model
     ocr = get_ocr_model(args.ocr_engine, model_name=args.ocr_model, device=args.device, use_gpu='cuda' in args.device)
     od = get_od_model(args.od_engine, model_name=args.od_model, device=args.device)
 
