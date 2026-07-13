@@ -2,15 +2,20 @@
 
 Loads all per-video shards into one keyframe index, embeds each task description
 with CLIP text encoder, finds the most similar keyframes (chunked top-k on GPU),
-dedups to distinct videos, and emits up to 10 (video_id, frame_ms) predictions
-per task — one frame (the matched keyframe's timestamp) per distinct video.
+dedups to distinct videos, and emits up to `max_predictions` (video_id, frame_ms) predictions
+per task.
+
+Added features (Merged):
+- User's Temporal Smoothing, Dual Softmax, Causal Bonus.
+- OOP model loading.
+- OCR Hard Filtering.
+- KMeans Clustering for Diversity.
 """
 from __future__ import annotations
-import argparse, glob, json, os, time
+import argparse, glob, json, os, time, re
 from pathlib import Path
 import numpy as np
 import collections
-import re
 
 def parse_queries(tasks, max_window=15):
     all_queries = []
@@ -44,8 +49,20 @@ def parse_queries(tasks, max_window=15):
     return all_queries, task_mapping
 
 
-def load_index(shard_dir):
+def load_index(shard_dir, meta_dir=None):
     embs, vids, ts = [], [], []
+    metadata = {}
+    
+    if meta_dir and os.path.exists(meta_dir):
+        print(f"[index] Loading metadata from {meta_dir}...", flush=True)
+        for f in glob.glob(os.path.join(meta_dir, "*.jsonl")):
+            vid = Path(f).stem
+            metadata[vid] = {}
+            with open(f, 'r', encoding='utf-8') as jf:
+                for line in jf:
+                    data = json.loads(line)
+                    metadata[vid][data["ts_ms"]] = data
+
     files = sorted(glob.glob(os.path.join(shard_dir, "*.npz")))
     for f in files:
         d = np.load(f)
@@ -62,12 +79,13 @@ def load_index(shard_dir):
     ts = np.concatenate(ts, 0).astype(np.int32)
     vids = np.array(vids)
     print(f"[index] {emb.shape[0]} keyframes from {len(files)} videos, dim={emb.shape[1]}", flush=True)
-    return emb, vids, ts
+    return emb, vids, ts, metadata
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--shards", required=True)
+    p.add_argument("--metadata", default=None, help="dir containing .jsonl metadata")
     p.add_argument("--tasks", required=True, help="a round's task file, e.g. public_round_tasks.jsonl")
     p.add_argument("--out", required=True, help="submission.json path")
     p.add_argument("--device", default="cuda:0")
@@ -80,7 +98,9 @@ def main():
     args = p.parse_args()
 
     import torch
-    emb, vids, ts = load_index(args.shards)
+    from sklearn.cluster import KMeans
+
+    emb, vids, ts, metadata = load_index(args.shards, args.metadata)
     
     print("[retrieve] Smoothing features temporally...", flush=True)
     emb_prev = np.roll(emb, 1, axis=0)
@@ -103,19 +123,19 @@ def main():
     smoothed[mask_right] = 0.8 * smoothed[mask_right] + 0.2 * emb_prev[mask_right]
     
     norms = np.linalg.norm(smoothed, axis=1, keepdims=True)
-    emb = np.where(norms > 1e-9, smoothed / norms, smoothed).astype(np.float16)
+    emb_smoothed = np.where(norms > 1e-9, smoothed / norms, smoothed).astype(np.float16)
 
     tasks = [json.loads(l) for l in open(args.tasks)]
     print(f"[tasks] {len(tasks)}", flush=True)
 
-    from clip_model import ClipModel
+    from models.embedding.clip_model import ClipModel
     clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     all_queries, task_mapping = parse_queries(tasks, args.max_window)
     Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
 
     dev = args.device
-    idx = torch.from_numpy(emb).to(dev).float()                    # Ép sang fp32 [N, D]
-    Qt = torch.from_numpy(Q).to(dev).float()                       # Ép sang fp32 [T_all, D]
+    idx = torch.from_numpy(emb_smoothed).to(dev).float()           # fp32 [N, D]
+    Qt = torch.from_numpy(Q).to(dev).float()                       # fp32 [T_all, D]
     T_all, N = Qt.shape[0], idx.shape[0]
     K = min(args.cand_keyframes, N)
 
@@ -149,17 +169,34 @@ def main():
 
     preds = []
     for ti, task in enumerate(tasks):
+        desc = task["description"]
+        max_preds = task.get("max_predictions", args.top_videos)
+        
+        # Query parsing for OCR
+        quotes = re.findall(r'"([^"]*)"', desc)
+        ocr_query = [q.lower() for q in quotes]
+        
         main_rows, main_sims = task_results[ti]['main']
         subs = task_results[ti]['subs']
         
         # 1. Thu thập điểm của Câu Chính (Base Score)
         v_main_scores = collections.defaultdict(list)
         v_main_centers = {}
+        v_main_rows = {}
         for r, sim in zip(main_rows, main_sims):
             v = str(vids[r])
+            center = int(ts[r])
+            
+            # [HARD FILTER OCR]
+            if ocr_query and v in metadata and center in metadata[v]:
+                meta_ocr = metadata[v][center].get("ocr", "")
+                if not all(q in meta_ocr for q in ocr_query):
+                    continue
+                    
             v_main_scores[v].append(float(sim))
             if v not in v_main_centers:
-                v_main_centers[v] = int(ts[r])
+                v_main_centers[v] = center
+                v_main_rows[v] = r
                 
         # 2. Thu thập điểm của các Câu Phụ
         v_sub_max = collections.defaultdict(lambda: collections.defaultdict(float))
@@ -172,7 +209,7 @@ def main():
                     v_sub_center[v][sub_id] = int(ts[r])
                     
         # 3. Tính điểm tổng hợp (Base + Sub Booster + Causal Bonus)
-        ranked_vids = []
+        candidates = []
         for v, m_scores in v_main_scores.items():
             main_sc = m_scores[0]
             main_bonus = sum(m_scores[1:4]) / len(m_scores[1:4]) * 0.1 if len(m_scores) > 1 else 0.0
@@ -182,13 +219,10 @@ def main():
             causal_bonus = 0.0
             if v in v_sub_max:
                 subs_for_v = v_sub_max[v]
-                # Các câu phụ (sub queries) đóng vai trò booster với trọng số nghịch biến:
-                # Càng về sau (sub_id càng lớn), trọng số càng nhỏ (0.2 / sub_id).
                 for sid, sim in subs_for_v.items():
                     decay_weight = 0.2 / sid
                     sub_bonus += sim * decay_weight
                 
-                # Check causal order
                 if len(subs_for_v) > 1:
                     ordered = True
                     sorted_sub_ids = sorted(subs_for_v.keys())
@@ -202,15 +236,41 @@ def main():
                         causal_bonus = abs(base_score) * 0.1
                         
             final_sc = base_score + sub_bonus + causal_bonus
-            ranked_vids.append((final_sc, v, v_main_centers[v]))
+            candidates.append({
+                "video_id": v,
+                "frame_ms": v_main_centers[v],
+                "sim": final_sc,
+                "feat": emb[v_main_rows[v]] # Note: use raw emb for clustering, not smoothed
+            })
             
-        ranked_vids.sort(key=lambda x: x[0], reverse=True)
+        candidates.sort(key=lambda x: x["sim"], reverse=True)
         
+        # 4. KMeans Clustering
+        num_clusters = min(max_preds, len(candidates))
+        if num_clusters > 1:
+            X = np.array([c["feat"] for c in candidates])
+            kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10).fit(X)
+            labels = kmeans.labels_
+            
+            clusters = {i: [] for i in range(num_clusters)}
+            for i, c in enumerate(candidates):
+                clusters[labels[i]].append(c)
+                
+            final_results = []
+            for i in range(num_clusters):
+                if clusters[i]:
+                    best_in_cluster = sorted(clusters[i], key=lambda x: x["sim"], reverse=True)[0]
+                    final_results.append(best_in_cluster)
+                    
+            final_results = sorted(final_results, key=lambda x: x["sim"], reverse=True)
+        else:
+            final_results = candidates[:max_preds]
+            
         results = []
-        for rank, (score, v, center) in enumerate(ranked_vids[:args.top_videos], 1):
+        for rank, res in enumerate(final_results[:max_preds], 1):
             results.append({
-                "rank": rank, "video_id": v,
-                "frame_ms": center,
+                "rank": rank, "video_id": res["video_id"],
+                "frame_ms": res["frame_ms"],
             })
         preds.append({"task_id": task["task_id"], "results": results})
 
