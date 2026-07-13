@@ -17,4 +17,15 @@ dependencies = [
     "transformers",
     "accelerate",
     "torchvision",
+    "verovio>=6.2.1",
+    "tiktoken>=0.13.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
