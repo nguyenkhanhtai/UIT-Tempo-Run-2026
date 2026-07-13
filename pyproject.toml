@@ -20,6 +20,8 @@ dependencies = [
     "verovio>=6.2.1",
     "tiktoken>=0.13.0",
     "einops",
+    "paddleocr",
+    "paddlepaddle-gpu",
 ]
 
 [[tool.uv.index]]

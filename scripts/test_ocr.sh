@@ -11,14 +11,20 @@ mkdir -p logs
 #     --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr.log
 
 # --- Option 2: Microsoft Florence-2 (SOTA VLM OCR, less hallucination) ---
-uv run python baseline/utils/test.py \
-    --task ocr \
-    --engine florence2 \
-    --model microsoft/Florence-2-large \
-    --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr.log
+# uv run python baseline/utils/test.py \
+#     --task ocr \
+#     --engine florence2 \
+#     --model microsoft/Florence-2-large \
+#     --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr.log
 
 # --- Option 3: EasyOCR (Fast, lightweight, good for simple text) ---
 # uv run python baseline/utils/test.py \
 #     --task ocr \
 #     --engine easyocr \
 #     --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr.log
+
+# --- Option 4: PaddleOCR (SOTA for traditional OCR and Vietnamese) ---
+uv run python baseline/utils/test.py \
+    --task ocr \
+    --engine paddleocr \
+    --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr.log
