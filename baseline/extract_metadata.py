@@ -28,8 +28,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--keyframes", required=True, help="dir produced by extract_keyframes.py")
     ap.add_argument("--out", required=True, help="dir to save metadata")
-    ap.add_argument("--ocr-model", default="easyocr", help="OCR model to use")
-    ap.add_argument("--od-model", default="yolo", help="OD model to use")
+    ap.add_argument("--ocr-engine", default="easyocr", help="OCR engine to use")
+    ap.add_argument("--ocr-model", default=None, help="OCR model checkpoint (if applicable)")
+    ap.add_argument("--od-engine", default="yolo", help="OD engine to use")
+    ap.add_argument("--od-model", default="yolov8x.pt", help="OD model checkpoint")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--shard-index", type=int, default=0)
     ap.add_argument("--shard-count", type=int, default=1)
@@ -51,11 +53,11 @@ def main():
     print(f"[shard {args.shard_index}/{args.shard_count}] {len(mine)}/{len(vdirs)} videos", flush=True)
 
     # Initialize models via factory/imports
-    print(f"[init] Loading OCR ({args.ocr_model}) and OD ({args.od_model}) models...", flush=True)
+    print(f"[init] Loading OCR ({args.ocr_engine}: {args.ocr_model}) and OD ({args.od_engine}: {args.od_model}) models...", flush=True)
     
     from models.factory import get_ocr_model, get_od_model
-    ocr = get_ocr_model(args.ocr_model, device=args.device, use_gpu='cuda' in args.device)
-    od = get_od_model(args.od_model, device=args.device)
+    ocr = get_ocr_model(args.ocr_engine, model_name=args.ocr_model, device=args.device, use_gpu='cuda' in args.device)
+    od = get_od_model(args.od_engine, model_name=args.od_model, device=args.device)
 
     t0 = time.time(); done = nframes = failed = 0
     

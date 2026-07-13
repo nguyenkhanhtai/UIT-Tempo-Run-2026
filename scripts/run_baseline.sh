@@ -42,8 +42,10 @@ VLMS=(
   # "EVA02-L-14,merged2b_s4b_b131k"
 )
 PRECISION="fp16"
-OCR_MODEL="transformers"
-OD_MODEL="yolo"
+OCR_ENGINE="transformers"
+OCR_MODEL="stepfun-ai/GOT-OCR2_0"
+OD_ENGINE="yolo"
+OD_MODEL="yolov8x.pt"
 SHARDS=4
 BATCH_SIZE=116
 
@@ -94,9 +96,14 @@ echo "=========================================================="
 # Run multiple metadata extraction processes in parallel
 for i in $(seq 0 $((SHARDS-1))); do
   GPU_ID=$((i % NUM_GPUS))
-  uv run python baseline/extract_metadata.py \
-    --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
-    --ocr-model $OCR_MODEL --od-model $OD_MODEL \
+  uv run  python baseline/extract_metadata.py \
+    --keyframes "$KF_DIR" \
+    --out "$INDEX_DIR" \
+    --ocr-engine "$OCR_ENGINE" \
+    --ocr-model "$OCR_MODEL" \
+    --od-engine "$OD_ENGINE" \
+    --od-model "$OD_MODEL" \
+    --device "cuda:$((i % NUM_GPUS))" \
     --shard-index $i --shard-count $SHARDS &
 done
 wait

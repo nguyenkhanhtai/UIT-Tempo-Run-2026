@@ -2,7 +2,7 @@ from .base_ocr import BaseOCR
 import numpy as np
 
 class EasyOCRModel(BaseOCR):
-    def __init__(self, langs=['en', 'vi', 'ar', 'ru', 'zh'], use_gpu=True):
+    def __init__(self, langs=['en', 'vi', 'ar', 'ru', 'zh'], use_gpu=True, **kwargs):
         import easyocr
         self.reader = easyocr.Reader(langs, gpu=use_gpu)
 

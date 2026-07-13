@@ -123,13 +123,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
 
     all_candidates = []
     
-    from .parser import extract_ocr_queries, extract_object_queries
-    
     for ti, task in enumerate(tasks):
-        desc = task["description"]
-        ocr_query = extract_ocr_queries(desc)
-        object_query = extract_object_queries(desc)
-        
         main_rows, main_sims = task_results[ti]['main']
         subs = task_results[ti]['subs']
         
