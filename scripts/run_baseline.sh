@@ -12,7 +12,7 @@ DATASET_ROOT="dataset/Video_V3C"
 KF_DIR="keyframes"
 INDEX_DIR="artifacts/index"
 TASKS_FILE="dataset/Public_round_tasks.jsonl"
-OUT_FILE="submission.json"
+# OUT_FILE is computed below in STAGE 4
 
 # Auto-detect number of GPUs
 NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l || echo 1)
@@ -49,6 +49,7 @@ OD_ENGINE="yolo"
 OD_MODEL="yolov12m.pt"
 SHARDS=4
 BATCH_SIZE=116
+LIMIT_PER_SHARD=125 # Tổng 500 videos / 4 shards
 
 echo "=========================================================="
 echo "STAGE 1: Extract Keyframes (Cut frames from Video)"
@@ -58,7 +59,7 @@ for i in $(seq 0 $((SHARDS-1))); do
   uv run python baseline/extract_keyframes.py \
     --dataset-root $DATASET_ROOT/V3C1 \
     --dataset-root $DATASET_ROOT/V3C2 \
-    --out $KF_DIR --shard-index $i --shard-count $SHARDS &
+    --out $KF_DIR --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 wait
 echo "-> Finished keyframe extraction!"
@@ -81,7 +82,7 @@ for VLM in "${VLMS[@]}"; do
     uv run python baseline/extract_embed.py \
       --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
       --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
-      --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE &
+      --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE --limit $LIMIT_PER_SHARD &
   done
   wait
   
@@ -105,7 +106,7 @@ for i in $(seq 0 $((SHARDS-1))); do
     --od-engine "$OD_ENGINE" \
     --od-model "$OD_MODEL" \
     --device "cuda:$((i % NUM_GPUS))" \
-    --shard-index $i --shard-count $SHARDS &
+    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 wait
 echo "-> Finished metadata extraction!"
@@ -116,6 +117,13 @@ uv run python scripts/clean_ram.py
 echo "=========================================================="
 echo "STAGE 4: Retrieval (Query and generate submission.json)"
 echo "=========================================================="
+mkdir -p submission
+NEXT_ID=$(ls -1q submission 2>/dev/null | grep -E '^[0-9]+$' | wc -l || echo 0)
+NEXT_ID=$((NEXT_ID + 1))
+SUB_DIR="submission/${NEXT_ID}"
+mkdir -p "$SUB_DIR"
+OUT_FILE="${SUB_DIR}/submission.json"
+
 uv run python baseline/retrieve.py \
   --shards $INDEX_DIR/shards \
   --metadata $INDEX_DIR/metadata \
@@ -129,5 +137,9 @@ uv run python baseline/retrieve.py \
 uv run python scripts/clean_ram.py
 
 echo "=========================================================="
-echo "DONE! Submission file saved at: $OUT_FILE"
+echo "Zipping submission..."
+cd "$SUB_DIR"
+zip -r submission.zip submission.json
+cd ../..
+echo "DONE! Submission file saved and zipped at: ${SUB_DIR}/submission.zip"
 echo "=========================================================="
