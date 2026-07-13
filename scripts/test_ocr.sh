@@ -3,7 +3,7 @@
 # Có thể đổi ảnh trong test_images/ocr_test.png thành ảnh khác nếu muốn
 cd "$(dirname "$0")/.."
 mkdir -p logs
-uv run python baseline/utils/inspect.py \
+uv run python baseline/utils/test.py \
     --task ocr \
     --engine transformers \
     --model stepfun-ai/GOT-OCR2_0 \
