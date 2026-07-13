@@ -46,7 +46,7 @@ OCR_ENGINE="easyocr"
 OCR_MODEL="easyocr"
 OD_ENGINE="yolo"
 # yolov12n, yolov12s, yolov12m (YOLOv12 SOTA mới nhất dùng Area Attention), yolo11m (Ultralytics), yolov10m
-OD_MODEL="yolov12m.pt"
+OD_MODEL="yolo11m.pt"
 SHARDS=4
 BATCH_SIZE=116
 LIMIT_PER_SHARD=125 # Tổng 500 videos / 4 shards
