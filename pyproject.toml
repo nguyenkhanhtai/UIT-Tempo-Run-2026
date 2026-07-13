@@ -14,15 +14,15 @@ dependencies = [
     "easyocr",
     "ultralytics",
     "scikit-learn",
-    "transformers<4.44",
+    "transformers>=4.49.0",
     "accelerate",
     "torchvision",
     "verovio>=6.2.1",
     "tiktoken>=0.13.0",
     "einops",
-    "paddleocr",
-    "paddlepaddle-gpu",
     "setuptools",
+    "paddleocr>=2.10.0",
+    "paddlepaddle-gpu>=2.6.2",
 ]
 
 [[tool.uv.index]]

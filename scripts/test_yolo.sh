@@ -6,5 +6,5 @@ mkdir -p logs
 uv run python baseline/utils/test.py \
     --task od \
     --engine yolo \
-    --model yolo11m.pt \
+    --model yolo12m.pt \
     --images "test_images/yolo_*.png" 2>&1 | tee logs/test_yolo.log

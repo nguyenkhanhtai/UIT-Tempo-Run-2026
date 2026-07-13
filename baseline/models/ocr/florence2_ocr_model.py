@@ -1,64 +1,83 @@
 from .base_ocr import BaseOCR
 import torch
+from PIL import Image
+import gc
 
 class Florence2OCRModel(BaseOCR):
-    def __init__(self, model_name='microsoft/Florence-2-large', device='cuda:0', **kwargs):
-        # Mock flash_attn to prevent ImportError from transformers dynamic module check
-        import sys, types, importlib.machinery
-        if "flash_attn" not in sys.modules:
-            m = types.ModuleType("flash_attn")
-            m.__spec__ = importlib.machinery.ModuleSpec("flash_attn", None)
-            sys.modules["flash_attn"] = m
-            
+    def __init__(self, model_name=None, device='cuda:0', **kwargs):
         from transformers import AutoProcessor, AutoModelForCausalLM
         self.device = device
-        self.model_name = model_name
+        self.model_name = model_name or 'microsoft/Florence-2-large'
+        print(f"[init] Loading Florence-2 ({self.model_name}) to {device}...", flush=True)
         
-        print(f"[init] Loading Florence-2 OCR ({model_name})... This may take a while.", flush=True)
-        self.processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+        # FIX CUDNN CRASH
+        torch.backends.cudnn.enabled = False
         
-        # Florence-2 can be loaded in float16 for speed and memory efficiency
+        self.dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        self.processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, 
-            trust_remote_code=True, 
-            torch_dtype=torch.float16
-        ).to(device)
-        self.model = self.model.eval()
+            self.model_name,
+            torch_dtype=self.dtype,
+            attn_implementation="eager",
+            trust_remote_code=True
+        ).eval().to(self.device)
 
-    def extract(self, imgs: list) -> list:
-        results = []
-        task_prompt = "<OCR>"
+    def extract(self, imgs: list, batch_size: int = 8) -> list:
+        if not imgs:
+            return []
+            
+        all_results = []
+        task_prompt = '<OCR>'
         
-        for img in imgs:
-            try:
-                # Ensure image is in RGB format
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                    
-                inputs = self.processor(text=task_prompt, images=img, return_tensors="pt").to(self.device, torch.float16)
+        # Ensure pad token exists
+        if self.processor.tokenizer.pad_token_id is None:
+            self.processor.tokenizer.pad_token_id = self.processor.tokenizer.eos_token_id
+            
+        for i in range(0, len(imgs), batch_size):
+            batch_imgs = imgs[i:i+batch_size]
+            pil_imgs = []
+            for img in batch_imgs:
+                if not isinstance(img, Image.Image):
+                    img = Image.fromarray(img).convert('RGB')
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                pil_imgs.append(img)
                 
-                with torch.no_grad():
-                    generated_ids = self.model.generate(
-                        input_ids=inputs["input_ids"],
-                        pixel_values=inputs["pixel_values"],
-                        max_new_tokens=1024,
-                        do_sample=False,
-                        num_beams=3,
-                    )
+            inputs = self.processor(
+                text=[task_prompt] * len(pil_imgs),
+                images=pil_imgs,
+                return_tensors="pt"
+            ).to(self.device, self.dtype)
+            
+            # Florence-2 specific formatting
+            inputs["input_ids"] = inputs["input_ids"].to(torch.int64)
+            if "attention_mask" in inputs:
+                inputs["attention_mask"] = inputs["attention_mask"].to(torch.int64)
                 
-                generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+            generated_ids = self.model.generate(
+                input_ids=inputs["input_ids"],
+                pixel_values=inputs["pixel_values"],
+                attention_mask=inputs.get("attention_mask"),
+                max_new_tokens=1024,
+                num_beams=3,
+                do_sample=False,
+                use_cache=False
+            )
+            
+            generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)
+            
+            for text in generated_text:
+                if self.processor.tokenizer.pad_token:
+                    text = text.replace(self.processor.tokenizer.pad_token, "")
                 parsed_answer = self.processor.post_process_generation(
-                    generated_text, 
-                    task=task_prompt, 
-                    image_size=(img.width, img.height)
+                    text, task=task_prompt, image_size=(1000, 1000) 
                 )
+                all_results.append(parsed_answer[task_prompt])
                 
-                # Florence-2 returns a dict with the task name as key
-                extracted_text = parsed_answer.get(task_prompt, "")
-                results.append(extracted_text)
-                
-            except Exception as e:
-                print(f"Florence-2 OCR error on frame: {e}")
-                results.append("")
-                
-        return results
+            # Cleanup
+            del inputs
+            del generated_ids
+            torch.cuda.empty_cache()
+            
+        gc.collect()
+        return all_results

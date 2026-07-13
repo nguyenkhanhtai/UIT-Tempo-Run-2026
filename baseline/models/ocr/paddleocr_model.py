@@ -1,38 +1,38 @@
 from .base_ocr import BaseOCR
+from PIL import Image
 import numpy as np
 
 class PaddleOCRModel(BaseOCR):
-    def __init__(self, model_name='ch_PP-OCRv4_xx', device='cuda:0', **kwargs):
+    def __init__(self, lang='en', use_gpu=True, **kwargs):
+        # We also enable 'vi' (Vietnamese) if multilingual is needed.
+        # PaddleOCR has an 'en' model, and 'latin' or 'vi' model. We will use 'en' by default but can set to 'vi'.
         from paddleocr import PaddleOCR
-        self.device = device
-        self.model_name = model_name
-        use_gpu = 'cuda' in device
-        print(f"[init] Loading PaddleOCR (use_gpu={use_gpu})...", flush=True)
-        # We use the multilingual/chinese model by default which also supports English and numbers
-        self.ocr = PaddleOCR(use_angle_cls=True, lang='vi', use_gpu=use_gpu, show_log=False)
+        import logging
+        logging.getLogger('ppocr').setLevel(logging.ERROR)
+        
+        print(f"[init] Loading PaddleOCR (lang={lang}, use_gpu={use_gpu})...", flush=True)
+        self.model = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu, show_log=False)
 
     def extract(self, imgs: list) -> list:
-        results = []
+        if not imgs:
+            return []
+            
+        all_results = []
         for img in imgs:
-            try:
-                # PaddleOCR expects numpy array in BGR format typically, or RGB
-                # We can pass numpy array directly
-                img_np = np.array(img)
-                # Convert RGB to BGR for PaddleOCR
-                img_bgr = img_np[:, :, ::-1]
+            if isinstance(img, Image.Image):
+                img = np.array(img.convert('RGB'))
+            
+            # PaddleOCR returns a list of lines, where each line is [box, (text, score)]
+            result = self.model.ocr(img, cls=True)
+            
+            # PaddleOCR might return None if no text is found
+            if not result or not result[0]:
+                all_results.append("")
+                continue
                 
-                res = self.ocr.ocr(img_bgr, cls=True)
-                
-                # result is a list of lines, where each line is [box, (text, score)]
-                # we just want to extract the text
-                extracted_text = []
-                if res and res[0]:
-                    for line in res[0]:
-                        extracted_text.append(line[1][0])
-                
-                results.append("\n".join(extracted_text))
-            except Exception as e:
-                print(f"PaddleOCR error on frame: {e}")
-                results.append("")
-                
-        return results
+            lines = result[0]
+            # Extract just the text from the result
+            text = "\n".join([line[1][0] for line in lines])
+            all_results.append(text)
+            
+        return all_results
