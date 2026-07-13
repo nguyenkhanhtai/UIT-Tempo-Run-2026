@@ -51,7 +51,7 @@ def main():
     ap.add_argument("--pretrained", default="laion2b_s34b_b79k")
     ap.add_argument("--precision", default=None)
     ap.add_argument("--device", default="cuda:0")
-    ap.add_argument("--batch-size", type=int, default=64)
+    ap.add_argument("--batch-size", type=int, default=100)
     ap.add_argument("--shard-index", type=int, default=0)
     ap.add_argument("--shard-count", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0, help="debug: cap #videos")
@@ -73,7 +73,7 @@ def main():
     clip = ClipModel(args.model, args.pretrained, device=args.device, precision=args.precision)
     print(f"[clip] {args.model}/{args.pretrained} on {args.device} dim={clip.dim}", flush=True)
 
-    t0 = time.time(); done = nframes = failed = 0
+    t0 = time.time(); t_last = t0; done = nframes = failed = 0
     for vdir in mine:
         vid = vdir.name
         out_npz = shard_dir / f"{vid}.npz"
@@ -89,14 +89,21 @@ def main():
             nframes += len(imgs)
         except Exception as ex:
             failed += 1
+            print(f"[shard {args.shard_index}] Exception: {ex}")
             with open(fail_log, "a") as f:
                 f.write(f"{vid}\t{ex}\n")
         done += 1
         if done % 50 == 0:
             el = time.time() - t0
+            batch_time = time.time() - t_last
+            recent_vids_per_sec = 50 / max(batch_time, 1e-9)
             print(f"[shard {args.shard_index}] {done}/{len(mine)} | {nframes} frames | "
-                  f"fail={failed} | {done/el*60:.0f} vids/min | ETA {(len(mine)-done)/max(done/el,1e-9)/60:.0f}min",
+                  f"fail={failed} | {recent_vids_per_sec*60:.0f} vids/min | 50_vids_time={batch_time:.1f}s | ETA {(len(mine)-done)/recent_vids_per_sec/60:.0f}min",
                   flush=True)
+            t_last = time.time()
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     print(f"[shard {args.shard_index}] DONE {done} videos, {nframes} frames, {failed} failed, "
           f"{time.time()-t0:.0f}s", flush=True)
 
