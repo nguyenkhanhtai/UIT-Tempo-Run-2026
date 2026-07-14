@@ -8,3 +8,5 @@ uv run python baseline/utils/test.py \
     --engine florence2 \
     --model "microsoft/Florence-2-large" \
     --images "test_images/yolo_*.png"
+# Xóa cache ổ cứng
+rm -rf ~/.cache/huggingface/hub/*

@@ -8,3 +8,5 @@ uv run python baseline/utils/test.py \
     --engine yolo \
     --model yolo12m.pt \
     --images "test_images/yolo_*.png"
+# Xóa model YOLO (file .pt) khỏi thư mục hiện tại
+rm -f *.pt
