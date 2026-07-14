@@ -5,17 +5,21 @@ import gc
 
 class BlipCaptionModel(BaseCaption):
     def __init__(self, model_name=None, device='cuda:0', **kwargs):
-        from transformers import BlipProcessor, BlipForConditionalGeneration
+        from ..model_shared import get_shared_model
         self.device = device
         self.model_name = model_name or 'Salesforce/blip-image-captioning-base'
         
-        print(f"[init] Loading BLIP Captioning ({self.model_name}) to {self.device}...", flush=True)
-        self.processor = BlipProcessor.from_pretrained(self.model_name)
-        self.model = BlipForConditionalGeneration.from_pretrained(
-            self.model_name,
-            torch_dtype=torch.float16 if 'cuda' in self.device else torch.float32
-        ).to(self.device)
-        self.model.eval()
+        def load_blip():
+            from transformers import BlipProcessor, BlipForConditionalGeneration
+            processor = BlipProcessor.from_pretrained(self.model_name)
+            model = BlipForConditionalGeneration.from_pretrained(
+                self.model_name,
+                torch_dtype=torch.float16 if 'cuda' in self.device else torch.float32
+            ).to(self.device)
+            model.eval()
+            return processor, model
+            
+        self.processor, self.model = get_shared_model(('blip', self.model_name, self.device), load_blip)
 
     def extract(self, imgs: list, batch_size: int = 8, **kwargs) -> list:
         if not imgs:

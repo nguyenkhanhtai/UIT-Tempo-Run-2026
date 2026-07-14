@@ -5,10 +5,25 @@ import gc
 
 class Florence2ODModel(BaseOD):
     def __init__(self, model_name=None, device='cuda:0', **kwargs):
-        from ..florence2_shared import get_florence2
+        from ..model_shared import get_shared_model
+        
         self.device = device
         self.model_name = model_name or 'microsoft/Florence-2-large'
-        self.processor, self.model = get_florence2(self.model_name, self.device)
+
+        def load_florence():
+            from transformers import AutoProcessor, AutoModelForCausalLM
+            torch.backends.cudnn.enabled = False
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+            processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                torch_dtype=dtype,
+                attn_implementation="eager",
+                trust_remote_code=True
+            ).eval().to(self.device)
+            return processor, model
+            
+        self.processor, self.model = get_shared_model(('florence2', self.model_name, self.device), load_florence)
         self.dtype = self.model.dtype
 
     def extract(self, imgs: list, batch_size: int = 8, **kwargs) -> list:

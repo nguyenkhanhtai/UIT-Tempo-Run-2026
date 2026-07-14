@@ -5,22 +5,27 @@ import gc
 
 class Florence2OCRModel(BaseOCR):
     def __init__(self, model_name=None, device='cuda:0', **kwargs):
-        from transformers import AutoProcessor, AutoModelForCausalLM
+        from ..model_shared import get_shared_model
+        
         self.device = device
         self.model_name = model_name or 'microsoft/Florence-2-large'
-        print(f"[init] Loading Florence-2 ({self.model_name}) to {device}...", flush=True)
-        
-        # FIX CUDNN CRASH
-        torch.backends.cudnn.enabled = False
-        
-        self.dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-        self.processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
-            torch_dtype=self.dtype,
-            attn_implementation="eager",
-            trust_remote_code=True
-        ).eval().to(self.device)
+
+        def load_florence():
+            from transformers import AutoProcessor, AutoModelForCausalLM
+            # FIX CUDNN CRASH
+            torch.backends.cudnn.enabled = False
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+            processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                torch_dtype=dtype,
+                attn_implementation="eager",
+                trust_remote_code=True
+            ).eval().to(self.device)
+            return processor, model
+            
+        self.processor, self.model = get_shared_model(('florence2', self.model_name, self.device), load_florence)
+        self.dtype = self.model.dtype
 
     def extract(self, imgs: list, batch_size: int = 8) -> list:
         if not imgs:
