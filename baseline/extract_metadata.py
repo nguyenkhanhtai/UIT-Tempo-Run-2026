@@ -162,7 +162,10 @@ def main():
                             info_str += f" | OD: {args.od_engine}({args.od_model})"
                         if args.task in ["caption", "all"]:
                             info_str += f" | Cap: {args.caption_engine}({args.caption_model})"
-                        print(f"  [{info_str}] done {done}/{len(mine)} videos in {time.time()-t0:.0f}s", flush=True)
+                        elapsed = time.time() - t0
+                        eta_seconds = (elapsed / done) * (len(mine) - done)
+                        eta_str = f"{int(eta_seconds // 3600)}h {int((eta_seconds % 3600) // 60)}m {int(eta_seconds % 60)}s" if eta_seconds >= 3600 else f"{int(eta_seconds // 60)}m {int(eta_seconds % 60)}s"
+                        print(f"  [{info_str}] done {done}/{len(mine)} videos in {elapsed:.0f}s | ETA: {eta_str}", flush=True)
                 except Exception as e:
                     failed += 1
                     with open(fail_log, "a") as fl:
