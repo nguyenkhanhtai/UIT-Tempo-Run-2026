@@ -35,10 +35,25 @@ def main():
     p.add_argument("--precision", default=None)
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--cand-keyframes", type=int, default=2000)
+    
+    # Toggles for metadata scoring and clustering
+    p.add_argument("--disable-ocr", action="store_true", help="Disable OCR scoring")
+    p.add_argument("--disable-od", action="store_true", help="Disable OD scoring")
+    p.add_argument("--disable-captioning", action="store_true", help="Disable Caption scoring")
+    p.add_argument("--disable-clustering", action="store_true", help="Disable KMeans clustering")
+    
     args = p.parse_args()
 
     tasks = [json.loads(l) for l in open(args.tasks)]
     print(f"[tasks] {len(tasks)}", flush=True)
+
+    # Set globals for toggles based on args
+    import retrieval.scorer as scorer
+    import retrieval.postprocess as postprocess
+    scorer.USE_OCR = not args.disable_ocr
+    scorer.USE_OD = not args.disable_od
+    scorer.USE_CAPTIONING = not args.disable_captioning
+    postprocess.USE_CLUSTERING = not args.disable_clustering
 
     # 3. Parse Queries & Encode
     all_queries, task_mapping = parse_queries(tasks)

@@ -73,6 +73,13 @@ OD_MODEL="yolo11m.pt"
 CAPTION_ENGINE="florence2"
 CAPTION_MODEL="microsoft/Florence-2-large"
 
+# --- CÁC TÙY CHỌN DÙNG METADATA ĐỂ CHẤM ĐIỂM VÀ LỌC KẾT QUẢ ---
+# Đổi thành "false" nếu bạn không muốn dùng tính năng tương ứng khi chấm điểm (Stage 4)
+USE_OCR="true"
+USE_OD="true"
+USE_CAPTIONING="true"
+USE_CLUSTERING="true"
+
 SHARDS=4
 CLIP_BATCH_SIZE=116
 OCR_BATCH_SIZE=4
@@ -187,6 +194,13 @@ SUB_DIR="submission/${NEXT_ID}"
 mkdir -p "$SUB_DIR"
 OUT_FILE="${SUB_DIR}/submission.json"
 
+# Prepare retrieve args
+RETRIEVE_ARGS=""
+if [ "$USE_OCR" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-ocr"; fi
+if [ "$USE_OD" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-od"; fi
+if [ "$USE_CAPTIONING" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-captioning"; fi
+if [ "$USE_CLUSTERING" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-clustering"; fi
+
 uv run python baseline/retrieve.py \
   --shards $INDEX_DIR/shards \
   --metadata $INDEX_DIR/metadata \
@@ -194,7 +208,7 @@ uv run python baseline/retrieve.py \
   --out $OUT_FILE \
   --vlms "${VLMS[@]}" \
   --precision $PRECISION \
-  --device "cuda:0"
+  --device "cuda:0" $RETRIEVE_ARGS
 
 # Cleanse RAM after retrieval
 uv run python scripts/clean_ram.py
