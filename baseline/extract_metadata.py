@@ -126,7 +126,7 @@ def main():
                     with open(out_jsonl, 'w', encoding='utf-8') as f:
                         for j in range(frames_expected[vid]):
                             t_ms = pending_results[vid]["ts"][j]
-                            data = {"ts_ms": t_ms}
+                            data = {"ts_ms": t_ms, "shard_index": args.shard_index}
                             
                             o = pending_results[vid]["ocr"][j]
                             if o is not None:
