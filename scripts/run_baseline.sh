@@ -74,7 +74,9 @@ CAPTION_ENGINE="florence2"
 CAPTION_MODEL="microsoft/Florence-2-large"
 
 SHARDS=4
-BATCH_SIZE=116
+CLIP_BATCH_SIZE=116
+OCR_BATCH_SIZE=4
+OD_BATCH_SIZE=4
 LIMIT_PER_SHARD=125 # Tổng 500 videos / 4 shards
 
 echo "=========================================================="
@@ -108,7 +110,7 @@ for VLM in "${VLMS[@]}"; do
     uv run python baseline/extract_embed.py \
       --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
       --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
-      --shard-index $i --shard-count $SHARDS --batch-size $BATCH_SIZE --limit $LIMIT_PER_SHARD &
+      --shard-index $i --shard-count $SHARDS --batch-size $CLIP_BATCH_SIZE --limit $LIMIT_PER_SHARD &
   done
   wait
   
