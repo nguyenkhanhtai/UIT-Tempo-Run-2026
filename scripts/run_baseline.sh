@@ -95,19 +95,40 @@ echo "-> Finished embedding!"
 echo "=========================================================="
 echo "STAGE 3: Extract Metadata (OCR & YOLO)"
 echo "=========================================================="
-# Run multiple metadata extraction processes in parallel
+# User-defined batch sizes for Metadata extraction
+OCR_BATCH_SIZE=8
+OD_BATCH_SIZE=32
+
+echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
+# Run multiple OCR processes in parallel
 for i in $(seq 0 $((SHARDS-1))); do
   GPU_ID=$((i % NUM_GPUS))
-  uv run  python baseline/extract_metadata.py \
+  uv run python baseline/extract_metadata.py \
+    --task ocr \
     --keyframes "$KF_DIR" \
     --out "$INDEX_DIR" \
     --ocr-engine "$OCR_ENGINE" \
     --ocr-model "$OCR_MODEL" \
-    --od-engine "$OD_ENGINE" \
-    --od-model "$OD_MODEL" \
-    --device "cuda:$((i % NUM_GPUS))" \
+    --batch-size $OCR_BATCH_SIZE \
+    --device "cuda:$GPU_ID" \
     --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
+
+echo ">>> Extracting Object Detection (Batch size: $OD_BATCH_SIZE)..."
+# Run multiple OD processes in parallel
+for i in $(seq 0 $((SHARDS-1))); do
+  GPU_ID=$((i % NUM_GPUS))
+  uv run python baseline/extract_metadata.py \
+    --task od \
+    --keyframes "$KF_DIR" \
+    --out "$INDEX_DIR" \
+    --od-engine "$OD_ENGINE" \
+    --od-model "$OD_MODEL" \
+    --batch-size $OD_BATCH_SIZE \
+    --device "cuda:$GPU_ID" \
+    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+done
+wait
 wait
 echo "-> Finished metadata extraction!"
 
