@@ -62,8 +62,8 @@ class Florence2CaptionModel(BaseCaption):
                 input_ids=inputs["input_ids"],
                 pixel_values=inputs["pixel_values"],
                 attention_mask=inputs.get("attention_mask"),
-                max_new_tokens=1024,
-                num_beams=3,
+                max_new_tokens=512,
+                num_beams=2,
                 do_sample=False,
                 use_cache=False
             )
