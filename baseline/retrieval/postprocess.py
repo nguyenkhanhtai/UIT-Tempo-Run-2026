@@ -4,11 +4,14 @@ features to diversify the final Top-K retrieval results.
 """
 import numpy as np
 
+# Lựa chọn có sử dụng thuật toán gom cụm (KMeans) để lọc các ảnh có nội dung tương tự nhau hay không
+USE_CLUSTERING = True
+
 def apply_clustering(task, candidates, default_top_videos):
     max_preds = task.get("max_predictions", default_top_videos)
     
     num_clusters = min(max_preds, len(candidates))
-    if num_clusters > 1:
+    if USE_CLUSTERING and num_clusters > 1:
         from sklearn.cluster import KMeans
         X = np.array([c["feat"] for c in candidates])
         kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10).fit(X)

@@ -8,6 +8,11 @@ import torch
 import difflib
 import math
 
+# Toggles for metadata scoring
+USE_OCR = True
+USE_OD = True
+USE_CAPTIONING = True
+
 def get_ocr_similarity(query, text):
     if not query or not text:
         return 0.0
@@ -49,23 +54,25 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     
     t0 = time.time()
     
-    try:
-        from sentence_transformers import SentenceTransformer, util
-        print("[retrieve] Loading sentence-transformers model for caption similarity...", flush=True)
-        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        st_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
-        use_st = True
-    except ImportError:
-        print("[retrieve] sentence-transformers not found, falling back to word overlap.", flush=True)
-        use_st = False
+    use_st = False
+    if USE_CAPTIONING:
+        try:
+            from sentence_transformers import SentenceTransformer, util
+            print("[retrieve] Loading sentence-transformers model for caption similarity...", flush=True)
+            device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+            st_model = SentenceTransformer('all-MiniLM-L6-v2', device=device, model_kwargs={"attn_implementation": "eager"})
+            use_st = True
+        except ImportError:
+            print("[retrieve] sentence-transformers not found, falling back to word overlap.", flush=True)
+            use_st = False
     
     qi_to_queries = {}
     for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
         if is_main:
             desc = tasks[ti]["description"]
-            ocr_q = extract_ocr_queries(desc)
-            obj_q = extract_object_queries(desc)
-            caption_q = desc.lower() # Full query text for caption matching
+            ocr_q = extract_ocr_queries(desc) if USE_OCR else []
+            obj_q = extract_object_queries(desc) if USE_OD else []
+            caption_q = desc.lower() if USE_CAPTIONING else "" # Full query text for caption matching
             
             # Always track main queries because caption matching applies to all
             qi_to_queries[qi] = (ocr_q, obj_q, caption_q)
@@ -78,13 +85,23 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     if use_st:
         unique_caption_queries = list(set(q[2] for q in qi_to_queries.values() if q[2]))
         if unique_caption_queries:
-            q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
+            try:
+                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
+            except Exception as e:
+                print(f"[retrieve] GPU encode failed ({e}), falling back to CPU...", flush=True)
+                st_model = st_model.to('cpu')
+                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
             query_emb_dict = {q: q_embs[i] for i, q in enumerate(unique_caption_queries)}
             
         unique_meta_captions = list(set(meta.get("caption", "") for meta_dict in metadata.values() for meta in meta_dict.values() if meta.get("caption")))
         if unique_meta_captions:
             print(f"[retrieve] Encoding {len(unique_meta_captions)} unique image captions with ST...", flush=True)
-            m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
+            try:
+                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
+            except Exception as e:
+                print(f"[retrieve] GPU batch encode failed ({e}), falling back to CPU...", flush=True)
+                st_model = st_model.to('cpu')
+                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
             meta_emb_dict = {c: m_embs[i] for i, c in enumerate(unique_meta_captions)}
 
         
@@ -100,15 +117,15 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
             
             for qi, (ocr_query, object_query, caption_query) in qi_to_queries.items():
                 bonus = 0.0
-                if ocr_query:
+                if ocr_query and USE_OCR:
                     for q in ocr_query:
                         sim = get_ocr_similarity(q, meta_ocr)
                         bonus += 0.15 * math.exp(4 * (sim - 1.0))
-                if object_query:
+                if object_query and USE_OD:
                     for qw in object_query:
                         if qw in meta_words:
                             bonus += 0.05
-                if meta_caption:
+                if meta_caption and USE_CAPTIONING:
                     if use_st:
                         q_emb = query_emb_dict.get(caption_query)
                         m_emb = meta_emb_dict.get(meta_caption)
