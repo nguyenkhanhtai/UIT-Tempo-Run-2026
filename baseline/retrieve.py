@@ -37,10 +37,10 @@ def main():
     p.add_argument("--cand-keyframes", type=int, default=2000)
     
     # Toggles for metadata scoring and clustering
-    p.add_argument("--disable-ocr", action="store_true", help="Disable OCR scoring")
-    p.add_argument("--disable-od", action="store_true", help="Disable OD scoring")
-    p.add_argument("--disable-captioning", action="store_true", help="Disable Caption scoring")
-    p.add_argument("--disable-clustering", action="store_true", help="Disable KMeans clustering")
+    p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
+    p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
+    p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
+    p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
     
     args = p.parse_args()
 
@@ -50,10 +50,10 @@ def main():
     # Set globals for toggles based on args
     import retrieval.scorer as scorer
     import retrieval.postprocess as postprocess
-    scorer.USE_OCR = not args.disable_ocr
-    scorer.USE_OD = not args.disable_od
-    scorer.USE_CAPTIONING = not args.disable_captioning
-    postprocess.USE_CLUSTERING = not args.disable_clustering
+    scorer.USE_OCR = args.use_ocr
+    scorer.USE_OD = args.use_od
+    scorer.USE_CAPTIONING = args.use_captioning
+    postprocess.USE_CLUSTERING = args.use_clustering
 
     # 3. Parse Queries & Encode
     all_queries, task_mapping = parse_queries(tasks)

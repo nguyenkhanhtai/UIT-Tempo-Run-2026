@@ -135,50 +135,56 @@ mkdir -p logs
 # User-defined batch sizes for Metadata extraction
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
-for i in $(seq 0 $((SHARDS-1))); do
-  GPU_ID=$((i % NUM_GPUS))
-  uv run python baseline/extract_metadata.py \
-    --task ocr \
-    --keyframes "$KF_DIR" \
-    --out "$INDEX_DIR" \
-    --device "cuda:${GPU_ID}" \
-    --ocr-engine "$OCR_ENGINE" \
-    --ocr-model "$OCR_MODEL" \
-    --batch-size $OCR_BATCH_SIZE \
-    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
-done
-wait
+if [ "$USE_OCR" = "true" ]; then
+  echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
+  for i in $(seq 0 $((SHARDS-1))); do
+    GPU_ID=$((i % NUM_GPUS))
+    uv run python baseline/extract_metadata.py \
+      --task ocr \
+      --keyframes "$KF_DIR" \
+      --out "$INDEX_DIR" \
+      --device "cuda:${GPU_ID}" \
+      --ocr-engine "$OCR_ENGINE" \
+      --ocr-model "$OCR_MODEL" \
+      --batch-size $OCR_BATCH_SIZE \
+      --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+  done
+  wait
+fi
 
-echo ">>> Extracting OD (Batch size: $OD_BATCH_SIZE)..."
-for i in $(seq 0 $((SHARDS-1))); do
-  GPU_ID=$((i % NUM_GPUS))
-  uv run python baseline/extract_metadata.py \
-    --task od \
-    --keyframes "$KF_DIR" \
-    --out "$INDEX_DIR" \
-    --device "cuda:${GPU_ID}" \
-    --od-engine "$OD_ENGINE" \
-    --od-model "$OD_MODEL" \
-    --batch-size $OD_BATCH_SIZE \
-    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
-done
-wait
+if [ "$USE_OD" = "true" ]; then
+  echo ">>> Extracting OD (Batch size: $OD_BATCH_SIZE)..."
+  for i in $(seq 0 $((SHARDS-1))); do
+    GPU_ID=$((i % NUM_GPUS))
+    uv run python baseline/extract_metadata.py \
+      --task od \
+      --keyframes "$KF_DIR" \
+      --out "$INDEX_DIR" \
+      --device "cuda:${GPU_ID}" \
+      --od-engine "$OD_ENGINE" \
+      --od-model "$OD_MODEL" \
+      --batch-size $OD_BATCH_SIZE \
+      --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+  done
+  wait
+fi
 
-echo ">>> Extracting Captions (Batch size: $OD_BATCH_SIZE)..."
-for i in $(seq 0 $((SHARDS-1))); do
-  GPU_ID=$((i % NUM_GPUS))
-  uv run python baseline/extract_metadata.py \
-    --task caption \
-    --keyframes "$KF_DIR" \
-    --out "$INDEX_DIR" \
-    --device "cuda:${GPU_ID}" \
-    --caption-engine "$CAPTION_ENGINE" \
-    --caption-model "$CAPTION_MODEL" \
-    --batch-size $OD_BATCH_SIZE \
-    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
-done
-wait
+if [ "$USE_CAPTIONING" = "true" ]; then
+  echo ">>> Extracting Captions (Batch size: $OD_BATCH_SIZE)..."
+  for i in $(seq 0 $((SHARDS-1))); do
+    GPU_ID=$((i % NUM_GPUS))
+    uv run python baseline/extract_metadata.py \
+      --task caption \
+      --keyframes "$KF_DIR" \
+      --out "$INDEX_DIR" \
+      --device "cuda:${GPU_ID}" \
+      --caption-engine "$CAPTION_ENGINE" \
+      --caption-model "$CAPTION_MODEL" \
+      --batch-size $OD_BATCH_SIZE \
+      --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+  done
+  wait
+fi
 echo "-> Finished metadata extraction!"
 
 # Dọn dẹp RAM/VRAM
@@ -196,10 +202,10 @@ OUT_FILE="${SUB_DIR}/submission.json"
 
 # Prepare retrieve args
 RETRIEVE_ARGS=""
-if [ "$USE_OCR" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-ocr"; fi
-if [ "$USE_OD" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-od"; fi
-if [ "$USE_CAPTIONING" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-captioning"; fi
-if [ "$USE_CLUSTERING" != "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --disable-clustering"; fi
+if [ "$USE_OCR" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-ocr"; fi
+if [ "$USE_OD" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-od"; fi
+if [ "$USE_CAPTIONING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-captioning"; fi
+if [ "$USE_CLUSTERING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-clustering"; fi
 
 uv run python baseline/retrieve.py \
   --shards $INDEX_DIR/shards \
