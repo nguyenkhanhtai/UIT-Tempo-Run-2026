@@ -63,8 +63,8 @@ class Florence2OCRModel(BaseOCR):
                 input_ids=inputs["input_ids"],
                 pixel_values=inputs["pixel_values"],
                 attention_mask=inputs.get("attention_mask"),
-                max_new_tokens=1024,
-                num_beams=2,
+                max_new_tokens=512,
+                num_beams=1, # Greedy search is much faster
                 do_sample=False,
                 use_cache=False
             )
