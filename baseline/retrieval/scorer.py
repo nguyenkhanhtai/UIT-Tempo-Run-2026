@@ -49,6 +49,16 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     
     t0 = time.time()
     
+    try:
+        from sentence_transformers import SentenceTransformer, util
+        print("[retrieve] Loading sentence-transformers model for caption similarity...", flush=True)
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        st_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+        use_st = True
+    except ImportError:
+        print("[retrieve] sentence-transformers not found, falling back to word overlap.", flush=True)
+        use_st = False
+    
     qi_to_queries = {}
     for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
         if is_main:
@@ -62,6 +72,21 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                 
     if not qi_to_queries:
         return B
+        
+    query_emb_dict = {}
+    meta_emb_dict = {}
+    if use_st:
+        unique_caption_queries = list(set(q[2] for q in qi_to_queries.values() if q[2]))
+        if unique_caption_queries:
+            q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
+            query_emb_dict = {q: q_embs[i] for i, q in enumerate(unique_caption_queries)}
+            
+        unique_meta_captions = list(set(meta.get("caption", "") for meta_dict in metadata.values() for meta in meta_dict.values() if meta.get("caption")))
+        if unique_meta_captions:
+            print(f"[retrieve] Encoding {len(unique_meta_captions)} unique image captions with ST...", flush=True)
+            m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
+            meta_emb_dict = {c: m_embs[i] for i, c in enumerate(unique_meta_captions)}
+
         
     for r in range(N):
         v = str(vids[r])
@@ -84,11 +109,25 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                         if qw in meta_words:
                             bonus += 0.05
                 if meta_caption:
-                    cap_sim = get_caption_similarity(caption_query, meta_caption)
+                    if use_st:
+                        q_emb = query_emb_dict.get(caption_query)
+                        m_emb = meta_emb_dict.get(meta_caption)
+                        if q_emb is not None and m_emb is not None:
+                            cap_sim = util.cos_sim(q_emb, m_emb).item()
+                        else:
+                            cap_sim = 0.0
+                    else:
+                        cap_sim = get_caption_similarity(caption_query, meta_caption)
+                        
                     if cap_sim > 0.4:  # Hạ nhẹ ngưỡng trùng lặp từ 0.5 xuống 0.4 để dễ ăn điểm hơn
                         bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3                
                 if bonus > 0:
                     B[qi, r] = bonus
+    
+    if use_st:
+        del st_model
+        import gc; gc.collect()
+        if torch.cuda.is_available(): torch.cuda.empty_cache()
                     
     print(f"[retrieve] Precomputed metadata bonus for {N} frames in {time.time()-t0:.1f}s", flush=True)
     return B
