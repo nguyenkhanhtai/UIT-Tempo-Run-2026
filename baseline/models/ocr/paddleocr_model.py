@@ -13,7 +13,7 @@ class PaddleOCRModel(BaseOCR):
         print(f"[init] Loading PaddleOCR (lang={lang}, use_gpu={use_gpu})...", flush=True)
         self.model = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu, show_log=False)
 
-    def extract(self, imgs: list) -> list:
+    def extract(self, imgs: list, batch_size: int = 8, **kwargs) -> list:
         if not imgs:
             return []
             

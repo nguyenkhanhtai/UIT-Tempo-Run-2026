@@ -14,13 +14,31 @@ def load_index(shard_dir, meta_dir=None):
     
     if meta_dir and os.path.exists(meta_dir):
         print(f"[index] Loading metadata from {meta_dir}...", flush=True)
-        for f in glob.glob(os.path.join(meta_dir, "*.jsonl")):
-            vid = Path(f).stem
-            metadata[vid] = {}
-            with open(f, 'r', encoding='utf-8') as jf:
-                for line in jf:
-                    data = json.loads(line)
-                    metadata[vid][data["ts_ms"]] = data
+        
+        def load_jsonl_files(directory):
+            if not os.path.exists(directory):
+                return
+            for f in glob.glob(os.path.join(directory, "*.jsonl")):
+                vid = Path(f).stem
+                if vid not in metadata:
+                    metadata[vid] = {}
+                with open(f, 'r', encoding='utf-8') as jf:
+                    for line in jf:
+                        try:
+                            data = json.loads(line)
+                            t = data["ts_ms"]
+                            if t not in metadata[vid]:
+                                metadata[vid][t] = {}
+                            # Update dictionary so we can merge OCR and OD smoothly
+                            metadata[vid][t].update(data)
+                        except Exception:
+                            continue
+                            
+        # Load legacy unified metadata (if any)
+        load_jsonl_files(meta_dir)
+        # Load separated OCR and OD metadata
+        load_jsonl_files(os.path.join(meta_dir, "ocr"))
+        load_jsonl_files(os.path.join(meta_dir, "od"))
 
     files = sorted(glob.glob(os.path.join(shard_dir, "*.npz")))
     for f in files:

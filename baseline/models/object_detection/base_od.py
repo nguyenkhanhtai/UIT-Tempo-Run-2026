@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class BaseOD(ABC):
     @abstractmethod
-    def extract(self, imgs: list):
+    def extract(self, imgs: list, batch_size: int = 32, **kwargs):
         """
         Takes a list of images (numpy arrays or PIL images).
         Returns a list of lists of strings (the detected object classes for each image).

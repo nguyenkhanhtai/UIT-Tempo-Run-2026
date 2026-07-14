@@ -13,4 +13,4 @@ mkdir -p logs
 # uv run python baseline/utils/test.py --task ocr --engine paddleocr --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr_paddleocr.log
 
 # Option 9: EasyOCR
-uv run python baseline/utils/test.py --task ocr --engine easyocr --images "test_images/ocr_*.png" 2>&1 | tee logs/test_ocr_easyocr.log
+uv run python baseline/utils/test.py --task ocr --engine easyocr --images "test_images/ocr_*.png" > logs/test_ocr_easyocr.log 2>&1

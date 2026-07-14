@@ -7,10 +7,10 @@ class YOLOModel(BaseOD):
         if 'cuda' in device:
             self.model.to(device)
 
-    def extract(self, imgs: list) -> list:
+    def extract(self, imgs: list, batch_size: int = 32, **kwargs) -> list:
         results = []
         # YOLO can process a batch of images
-        preds = self.model(imgs, verbose=False)
+        preds = self.model(imgs, verbose=False, batch=batch_size)
         for p in preds:
             classes = [p.names[int(c)] for c in p.boxes.cls]
             results.append(classes)

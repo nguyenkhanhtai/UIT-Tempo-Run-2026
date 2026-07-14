@@ -17,7 +17,7 @@ class EasyOCRModel(BaseOCR):
         print(f"[init] Loading EasyOCR (lang={lang_list}, use_gpu={use_gpu})...", flush=True)
         self.model = Reader(lang_list, gpu=use_gpu)
 
-    def extract(self, imgs: list) -> list:
+    def extract(self, imgs: list, batch_size: int = 8, **kwargs) -> list:
         if not imgs:
             return []
             
