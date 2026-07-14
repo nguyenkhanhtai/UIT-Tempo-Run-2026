@@ -45,8 +45,8 @@ class BlipCaptionModel(BaseCaption):
             with torch.no_grad():
                 generated_ids = self.model.generate(
                     **inputs,
-                    max_new_tokens=50,
-                    num_beams=3
+                    max_new_tokens=100,
+                    num_beams=1 # Greedy search is much faster
                 )
             
             generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)
