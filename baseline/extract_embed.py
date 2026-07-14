@@ -79,38 +79,95 @@ def main():
     print(f"[clip] {args.model}/{args.pretrained} on {args.device} dim={clip.dim}", flush=True)
 
     t0 = time.time(); t_last = t0; done = nframes = failed = 0
+    
+    from collections import defaultdict
+    frames_expected = {}
+    frames_processed = defaultdict(int)
+    pending_results = defaultdict(lambda: {"ts": [], "emb": []})
+    global_batch = [] # list of (vid, t, img)
+    
+    def process_global_batch(batch):
+        nonlocal done, failed, t_last
+        if not batch: return
+        vids = [b[0] for b in batch]
+        ts = [b[1] for b in batch]
+        imgs = [b[2] for b in batch]
+        
+        try:
+            emb_res = clip.encode_images(imgs, batch_size=args.batch_size)
+        except Exception as e:
+            print(f"[ERROR] Batch encode failed: {e}")
+            return
+            
+        for i in range(len(batch)):
+            vid = vids[i]
+            pending_results[vid]["ts"].append(ts[i])
+            pending_results[vid]["emb"].append(emb_res[i])
+            frames_processed[vid] += 1
+            
+            # If video is fully processed, write to disk
+            if frames_processed[vid] == frames_expected[vid]:
+                try:
+                    out_npz = shard_dir / f"{vid}.npz"
+                    final_emb = np.stack(pending_results[vid]["emb"], axis=0)
+                    final_ts = np.array(pending_results[vid]["ts"], dtype=np.int32)
+                    np.savez(out_npz, emb=final_emb.astype(np.float16), ts_ms=final_ts)
+                    
+                    done += 1
+                    if done % 50 == 0:
+                        batch_time = time.time() - t_last
+                        recent_vids_per_sec = 50 / max(batch_time, 1e-9)
+                        print(f"[shard {args.shard_index}] {done}/{len(mine)} | "
+                              f"fail={failed} | {recent_vids_per_sec*60:.0f} vids/min | 50_vids_time={batch_time:.1f}s | ETA {(len(mine)-done)/recent_vids_per_sec/60:.0f}min",
+                              flush=True)
+                        t_last = time.time()
+                except Exception as e:
+                    failed += 1
+                    with open(fail_log, "a") as fl:
+                        fl.write(f"{vid}\t{str(e)}\n")
+                    print(f"  ERROR saving {vid}: {e}")
+                
+                # Cleanup
+                del pending_results[vid]
+                del frames_expected[vid]
+                del frames_processed[vid]
+                
+        import torch
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     for vdir in mine:
         vid = vdir.name
         out_npz = shard_dir / f"{vid}.npz"
         if out_npz.exists():
             done += 1
             continue
+            
         try:
             imgs, ts = load_frames(vdir)
             if not imgs:
-                raise RuntimeError("no frames")
-            emb = clip.encode_images(imgs, batch_size=args.batch_size)
-            np.savez(out_npz, emb=emb.astype(np.float16), ts_ms=np.asarray(ts, dtype=np.int32))
+                continue
+                
             nframes += len(imgs)
-        except Exception as ex:
+            frames_expected[vid] = len(imgs)
+            
+            for i in range(len(imgs)):
+                global_batch.append((vid, ts[i], imgs[i]))
+                if len(global_batch) >= args.batch_size:
+                    process_global_batch(global_batch)
+                    global_batch = []
+                    
+        except Exception as e:
             failed += 1
-            print(f"[shard {args.shard_index}] Exception: {ex}")
-            with open(fail_log, "a") as f:
-                f.write(f"{vid}\t{ex}\n")
-        done += 1
-        if done % 50 == 0:
-            el = time.time() - t0
-            batch_time = time.time() - t_last
-            recent_vids_per_sec = 50 / max(batch_time, 1e-9)
-            print(f"[shard {args.shard_index}] {done}/{len(mine)} | {nframes} frames | "
-                  f"fail={failed} | {recent_vids_per_sec*60:.0f} vids/min | 50_vids_time={batch_time:.1f}s | ETA {(len(mine)-done)/recent_vids_per_sec/60:.0f}min",
-                  flush=True)
-            t_last = time.time()
-        import torch
-        import gc
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+            with open(fail_log, "a") as fl:
+                fl.write(f"{vid}\t{str(e)}\n")
+            print(f"  ERROR {vid}: {e}")
+            
+    if global_batch:
+        process_global_batch(global_batch)
+        global_batch = []
     print(f"[shard {args.shard_index}] DONE {done} videos, {nframes} frames, {failed} failed, "
           f"{time.time()-t0:.0f}s", flush=True)
 

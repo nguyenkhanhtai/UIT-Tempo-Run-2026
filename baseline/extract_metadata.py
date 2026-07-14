@@ -93,6 +93,93 @@ def main():
 
     t0 = time.time(); done = nframes = failed = 0
     
+    from collections import defaultdict
+    frames_expected = {}
+    frames_processed = defaultdict(int)
+    pending_results = defaultdict(lambda: {"ts": [], "ocr": [], "od": [], "cap": []})
+    global_batch = [] # list of (vid, t, img)
+    
+    def process_global_batch(batch):
+        nonlocal done, failed
+        if not batch: return
+        vids = [b[0] for b in batch]
+        ts = [b[1] for b in batch]
+        imgs = [b[2] for b in batch]
+        
+        ocr_res = ocr.extract(imgs, batch_size=args.batch_size) if ocr else [None]*len(imgs)
+        od_res = od.extract(imgs, batch_size=args.batch_size) if od else [None]*len(imgs)
+        cap_res = caption_model.extract(imgs, batch_size=args.batch_size) if caption_model else [None]*len(imgs)
+        
+        for i in range(len(batch)):
+            vid = vids[i]
+            pending_results[vid]["ts"].append(ts[i])
+            pending_results[vid]["ocr"].append(ocr_res[i])
+            pending_results[vid]["od"].append(od_res[i])
+            pending_results[vid]["cap"].append(cap_res[i])
+            frames_processed[vid] += 1
+            
+            # If video is fully processed, write to disk
+            if frames_processed[vid] == frames_expected[vid]:
+                try:
+                    out_jsonl = meta_dir / f"{vid}.jsonl"
+                    log_lines = []
+                    with open(out_jsonl, 'w', encoding='utf-8') as f:
+                        for j in range(frames_expected[vid]):
+                            t_ms = pending_results[vid]["ts"][j]
+                            data = {"ts_ms": t_ms}
+                            
+                            o = pending_results[vid]["ocr"][j]
+                            if o is not None:
+                                data["ocr"] = o.lower()
+                                if data["ocr"].strip():
+                                    log_lines.append(f"[{vid}] {t_ms}ms | OCR: {data['ocr']}")
+                                    
+                            d = pending_results[vid]["od"][j]
+                            if d is not None:
+                                data["objects"] = [obj.lower() for obj in d]
+                                if data["objects"]:
+                                    log_lines.append(f"[{vid}] {t_ms}ms | OD: {data['objects']}")
+                                    
+                            c = pending_results[vid]["cap"][j]
+                            if c is not None:
+                                data["caption"] = c.lower()
+                                if data["caption"].strip():
+                                    log_lines.append(f"[{vid}] {t_ms}ms | Caption: {data['caption']}")
+                                    
+                            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+                    
+                    if log_lines:
+                        os.makedirs("logs", exist_ok=True)
+                        with open(f"logs/results_{args.task}_shard_{args.shard_index}.log", "a", encoding="utf-8") as lf:
+                            lf.write("\n".join(log_lines) + "\n")
+                            
+                    done += 1
+                    if done % 10 == 0:
+                        info_str = f"Task: {args.task}"
+                        if args.task in ["ocr", "all"]:
+                            info_str += f" | OCR: {args.ocr_engine}({args.ocr_model})"
+                        if args.task in ["od", "all"]:
+                            info_str += f" | OD: {args.od_engine}({args.od_model})"
+                        if args.task in ["caption", "all"]:
+                            info_str += f" | Cap: {args.caption_engine}({args.caption_model})"
+                        print(f"  [{info_str}] done {done}/{len(mine)} videos in {time.time()-t0:.0f}s", flush=True)
+                except Exception as e:
+                    failed += 1
+                    with open(fail_log, "a") as fl:
+                        fl.write(f"{vid}\t{str(e)}\n")
+                    print(f"  ERROR saving {vid}: {e}")
+                
+                # Cleanup state for this vid
+                del pending_results[vid]
+                del frames_expected[vid]
+                del frames_processed[vid]
+
+        import torch
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     for vdir in mine:
         vid = vdir.name
         out_jsonl = meta_dir / f"{vid}.jsonl"
@@ -106,62 +193,24 @@ def main():
                 continue
                 
             nframes += len(imgs)
+            frames_expected[vid] = len(imgs)
             
-            ocr_results = None
-            od_results = None
-            caption_results = None
-            
-            if ocr is not None:
-                ocr_results = ocr.extract(imgs, batch_size=args.batch_size)
-            if od is not None:
-                od_results = od.extract(imgs, batch_size=args.batch_size)
-            if caption_model is not None:
-                caption_results = caption_model.extract(imgs, batch_size=args.batch_size)
-            
-            log_lines = []
-            with open(out_jsonl, 'w', encoding='utf-8') as f:
-                for i, t in enumerate(ts):
-                    data = {"ts_ms": t}
-                    if ocr_results is not None:
-                        data["ocr"] = ocr_results[i].lower()
-                        if data["ocr"].strip():
-                            log_lines.append(f"[{vid}] {t}ms | OCR: {data['ocr']}")
-                    if od_results is not None:
-                        data["objects"] = [obj.lower() for obj in od_results[i]]
-                        if data["objects"]:
-                            log_lines.append(f"[{vid}] {t}ms | OD: {data['objects']}")
-                    if caption_results is not None:
-                        data["caption"] = caption_results[i].lower()
-                        if data["caption"].strip():
-                            log_lines.append(f"[{vid}] {t}ms | Caption: {data['caption']}")
-                    f.write(json.dumps(data, ensure_ascii=False) + "\n")
-            
-            if log_lines:
-                os.makedirs("logs", exist_ok=True)
-                with open(f"logs/results_{args.task}_shard_{args.shard_index}.log", "a", encoding="utf-8") as lf:
-                    lf.write("\n".join(log_lines) + "\n")
+            for i in range(len(imgs)):
+                global_batch.append((vid, ts[i], imgs[i]))
+                if len(global_batch) >= args.batch_size:
+                    process_global_batch(global_batch)
+                    global_batch = []
                     
-            done += 1
-            if done % 10 == 0:
-                info_str = f"Task: {args.task}"
-                if args.task in ["ocr", "all"]:
-                    info_str += f" | OCR: {args.ocr_engine}({args.ocr_model})"
-                if args.task in ["od", "all"]:
-                    info_str += f" | OD: {args.od_engine}({args.od_model})"
-                if args.task in ["caption", "all"]:
-                    info_str += f" | Cap: {args.caption_engine}({args.caption_model})"
-                print(f"  [{info_str}] done {done}/{len(mine)} videos in {time.time()-t0:.0f}s", flush=True)
         except Exception as e:
             failed += 1
             with open(fail_log, "a") as fl:
                 fl.write(f"{vid}\t{str(e)}\n")
             print(f"  ERROR {vid}: {e}")
             
-        import torch
-        import gc
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    # Process any remaining frames in buffer
+    if global_batch:
+        process_global_batch(global_batch)
+        global_batch = []
             
     print(f"Finished {done} videos ({nframes} frames), {failed} errors in {time.time()-t0:.0f}s")
 
