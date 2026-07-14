@@ -85,9 +85,8 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                             bonus += 0.05
                 if meta_caption:
                     cap_sim = get_caption_similarity(caption_query, meta_caption)
-                    if cap_sim > 0.5:
-                        bonus += 0.1 * cap_sim
-                
+                    if cap_sim > 0.4:  # Hạ nhẹ ngưỡng trùng lặp từ 0.5 xuống 0.4 để dễ ăn điểm hơn
+                        bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3                
                 if bonus > 0:
                     B[qi, r] = bonus
                     
