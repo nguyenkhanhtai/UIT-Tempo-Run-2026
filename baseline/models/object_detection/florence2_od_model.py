@@ -18,7 +18,7 @@ class Florence2ODModel(BaseOD):
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype=dtype,
-                attn_implementation="sdpa", # SDPA uses Flash Attention under the hood automatically in PyTorch 2+
+                attn_implementation="eager",
                 trust_remote_code=True
             ).eval().to(self.device)
             return processor, model
