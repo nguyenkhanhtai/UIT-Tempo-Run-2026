@@ -10,8 +10,11 @@ def get_ocr_model(engine: str, **kwargs):
     elif engine == 'easyocr':
         from .ocr.easyocr_model import EasyOCRModel
         return EasyOCRModel(**kwargs)
+    elif engine == 'rapidocr':
+        from .ocr.rapidocr_model import RapidOCRModel
+        return RapidOCRModel(**kwargs)
     else:
-        raise ValueError(f"Unknown OCR engine: {engine}. Available: florence2, florence2_base, easyocr")
+        raise ValueError(f"Unknown OCR engine: {engine}. Available: florence2, florence2_base, easyocr, rapidocr")
 
 def get_od_model(engine: str, **kwargs):
     engine = engine.lower()

@@ -27,3 +27,9 @@ uv run python baseline/utils/test.py \
     --engine easyocr \
     --images "test_images/ocr_*.png"
 rm -rf ~/.EasyOCR/
+
+# Option 10: RapidOCR
+uv run python baseline/utils/test.py \
+    --task ocr \
+    --engine rapidocr \
+    --images "test_images/ocr_*.png"

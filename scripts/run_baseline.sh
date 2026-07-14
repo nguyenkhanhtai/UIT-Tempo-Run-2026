@@ -45,8 +45,12 @@ PRECISION="fp16"
 
 # --- CÁC MÔ HÌNH OCR GỢI Ý (Mở comment để sử dụng) ---
 # 1. EasyOCR (Nhanh, nhẹ, hỗ trợ nhiều ngôn ngữ)
-OCR_ENGINE="easyocr"
-OCR_MODEL="easyocr"
+# OCR_ENGINE="easyocr"
+# OCR_MODEL="easyocr"
+
+# 2. RapidOCR (Nhanh như chớp, chạy bằng ONNX, rất nhẹ và không cần thư viện rườm rà)
+OCR_ENGINE="rapidocr"
+OCR_MODEL="rapidocr"
 
 # 3. Florence-2 (Mô hình Vision-Language đa năng của Microsoft, siêu chính xác)
 # OCR_ENGINE="florence2"
@@ -131,23 +135,6 @@ mkdir -p logs
 # User-defined batch sizes for Metadata extraction
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-if [ "$USE_OCR" = "true" ]; then
-  echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
-  for i in $(seq 0 $((SHARDS-1))); do
-    GPU_ID=$((i % NUM_GPUS))
-    uv run python baseline/extract_metadata.py \
-      --task ocr \
-      --keyframes "$KF_DIR" \
-      --out "$INDEX_DIR" \
-      --device "cuda:${GPU_ID}" \
-      --ocr-engine "$OCR_ENGINE" \
-      --ocr-model "$OCR_MODEL" \
-      --batch-size $OCR_BATCH_SIZE \
-      --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
-  done
-  wait
-fi
-
 if [ "$USE_OD" = "true" ]; then
   echo ">>> Extracting OD (Batch size: $OD_BATCH_SIZE)..."
   for i in $(seq 0 $((SHARDS-1))); do
@@ -160,6 +147,23 @@ if [ "$USE_OD" = "true" ]; then
       --od-engine "$OD_ENGINE" \
       --od-model "$OD_MODEL" \
       --batch-size $OD_BATCH_SIZE \
+      --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+  done
+  wait
+fi
+
+if [ "$USE_OCR" = "true" ]; then
+  echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
+  for i in $(seq 0 $((SHARDS-1))); do
+    GPU_ID=$((i % NUM_GPUS))
+    uv run python baseline/extract_metadata.py \
+      --task ocr \
+      --keyframes "$KF_DIR" \
+      --out "$INDEX_DIR" \
+      --device "cuda:${GPU_ID}" \
+      --ocr-engine "$OCR_ENGINE" \
+      --ocr-model "$OCR_MODEL" \
+      --batch-size $OCR_BATCH_SIZE \
       --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
   done
   wait
