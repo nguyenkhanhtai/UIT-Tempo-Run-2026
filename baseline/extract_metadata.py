@@ -11,15 +11,24 @@ def list_keyframe_dirs(keyframes_dir: str) -> list[Path]:
     return sorted([p for p in Path(keyframes_dir).iterdir() if p.is_dir()])
 
 def load_frames(vdir: Path):
+    import numpy as np
+    files = sorted(glob.glob(os.path.join(vdir, "*.jpg")))
+    ts_path = os.path.join(vdir, "ts_ms.npy")
+    if not os.path.exists(ts_path):
+        return [], []
+    ts_array = np.load(ts_path)
+    n = min(len(files), len(ts_array))
+    
     imgs = []
     ts = []
-    for f in sorted(glob.glob(os.path.join(vdir, "*.jpg"))):
+    for i in range(n):
         try:
+            f = files[i]
             im = Image.open(f).convert("RGB")
             # Force load so we can catch truncation errors
             im.load()
             imgs.append(im)
-            ts.append(int(Path(f).stem))
+            ts.append(int(ts_array[i]))
         except Exception:
             continue
     return imgs, ts
@@ -102,8 +111,12 @@ def main():
                     data = {"ts_ms": t}
                     if ocr_results is not None:
                         data["ocr"] = ocr_results[i].lower()
+                        if data["ocr"].strip():
+                            print(f"[{vid}] {t}ms | OCR: {data['ocr']}", flush=True)
                     if od_results is not None:
                         data["objects"] = [obj.lower() for obj in od_results[i]]
+                        if data["objects"]:
+                            print(f"[{vid}] {t}ms | OD: {data['objects']}", flush=True)
                     f.write(json.dumps(data, ensure_ascii=False) + "\n")
                     
             done += 1

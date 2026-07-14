@@ -113,7 +113,7 @@ for i in $(seq 0 $((SHARDS-1))); do
     --ocr-model "$OCR_MODEL" \
     --batch-size $OCR_BATCH_SIZE \
     --device "cuda:$GPU_ID" \
-    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD > logs/extract_ocr_shard_${i}.log 2>&1 &
+    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 
 echo ">>> Extracting Object Detection (Batch size: $OD_BATCH_SIZE)..."
@@ -128,7 +128,7 @@ for i in $(seq 0 $((SHARDS-1))); do
     --od-model "$OD_MODEL" \
     --batch-size $OD_BATCH_SIZE \
     --device "cuda:$GPU_ID" \
-    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD > logs/extract_od_shard_${i}.log 2>&1 &
+    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 wait
 wait
