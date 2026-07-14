@@ -23,6 +23,7 @@ dependencies = [
     "setuptools",
     "sentence-transformers",
     "rapidocr-onnxruntime",
+    "hf-transfer",
 ]
 
 [[tool.uv.index]]
