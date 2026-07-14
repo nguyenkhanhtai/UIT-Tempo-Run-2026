@@ -28,6 +28,17 @@ def get_ocr_similarity(query, text):
             max_ratio = ratio
     return max_ratio
 
+def get_caption_similarity(query, caption):
+    if not query or not caption:
+        return 0.0
+    query = set(query.lower().split())
+    caption = set(caption.lower().split())
+    if not query or not caption:
+        return 0.0
+    # Calculate word overlap ratio
+    overlap = len(query.intersection(caption))
+    return overlap / len(query)
+
 def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     import numpy as np
     from .parser import extract_ocr_queries, extract_object_queries
@@ -44,8 +55,10 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
             desc = tasks[ti]["description"]
             ocr_q = extract_ocr_queries(desc)
             obj_q = extract_object_queries(desc)
-            if ocr_q or obj_q:
-                qi_to_queries[qi] = (ocr_q, obj_q)
+            caption_q = desc.lower() # Full query text for caption matching
+            
+            # Always track main queries because caption matching applies to all
+            qi_to_queries[qi] = (ocr_q, obj_q, caption_q)
                 
     if not qi_to_queries:
         return B
@@ -57,9 +70,10 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
             meta = metadata[v][center]
             meta_ocr = meta.get("ocr", "")
             meta_objs = meta.get("objects", [])
+            meta_caption = meta.get("caption", "")
             meta_words = set(w for obj in meta_objs for w in obj.lower().split())
             
-            for qi, (ocr_query, object_query) in qi_to_queries.items():
+            for qi, (ocr_query, object_query, caption_query) in qi_to_queries.items():
                 bonus = 0.0
                 if ocr_query:
                     for q in ocr_query:
@@ -69,6 +83,10 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                     for qw in object_query:
                         if qw in meta_words:
                             bonus += 0.05
+                if meta_caption:
+                    cap_sim = get_caption_similarity(caption_query, meta_caption)
+                    if cap_sim > 0.5:
+                        bonus += 0.1 * cap_sim
                 
                 if bonus > 0:
                     B[qi, r] = bonus

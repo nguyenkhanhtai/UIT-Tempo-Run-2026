@@ -38,11 +38,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--keyframes", required=True, help="dir produced by extract_keyframes.py")
     ap.add_argument("--out", required=True, help="dir to save metadata")
-    ap.add_argument("--task", choices=["ocr", "od", "all"], default="all")
+    ap.add_argument("--task", choices=["ocr", "od", "caption", "all"], default="all")
     ap.add_argument("--ocr-engine", default="easyocr", help="OCR engine to use")
     ap.add_argument("--ocr-model", default=None, help="OCR model checkpoint (if applicable)")
     ap.add_argument("--od-engine", default="yolo", help="OD engine to use")
     ap.add_argument("--od-model", default="yolov8x.pt", help="OD model checkpoint")
+    ap.add_argument("--caption-engine", default="florence2", help="Caption engine to use")
+    ap.add_argument("--caption-model", default="microsoft/Florence-2-large", help="Caption model checkpoint")
     ap.add_argument("--batch-size", type=int, default=8, help="Batch size for processing")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--shard-index", type=int, default=0)
@@ -54,6 +56,8 @@ def main():
         meta_dir = Path(args.out) / "metadata" / "ocr"
     elif args.task == "od":
         meta_dir = Path(args.out) / "metadata" / "od"
+    elif args.task == "caption":
+        meta_dir = Path(args.out) / "metadata" / "caption"
     else:
         meta_dir = Path(args.out) / "metadata"
         
@@ -72,16 +76,20 @@ def main():
 
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from baseline.models.factory import get_ocr_model, get_od_model
+    from baseline.models.factory import get_ocr_model, get_od_model, get_caption_model
 
     ocr = None
     od = None
+    caption_model = None
     if args.task in ["ocr", "all"]:
         print(f"[init] Loading OCR ({args.ocr_engine}: {args.ocr_model})...", flush=True)
         ocr = get_ocr_model(args.ocr_engine, model_name=args.ocr_model, device=args.device, use_gpu='cuda' in args.device)
     if args.task in ["od", "all"]:
         print(f"[init] Loading OD ({args.od_engine}: {args.od_model})...", flush=True)
         od = get_od_model(args.od_engine, model_name=args.od_model, device=args.device)
+    if args.task in ["caption", "all"]:
+        print(f"[init] Loading Captioning ({args.caption_engine}: {args.caption_model})...", flush=True)
+        caption_model = get_caption_model(args.caption_engine, model_name=args.caption_model, device=args.device)
 
     t0 = time.time(); done = nframes = failed = 0
     
@@ -101,28 +109,48 @@ def main():
             
             ocr_results = None
             od_results = None
+            caption_results = None
             
             if ocr is not None:
                 ocr_results = ocr.extract(imgs, batch_size=args.batch_size)
             if od is not None:
                 od_results = od.extract(imgs, batch_size=args.batch_size)
+            if caption_model is not None:
+                caption_results = caption_model.extract(imgs, batch_size=args.batch_size)
             
+            log_lines = []
             with open(out_jsonl, 'w', encoding='utf-8') as f:
                 for i, t in enumerate(ts):
                     data = {"ts_ms": t}
                     if ocr_results is not None:
                         data["ocr"] = ocr_results[i].lower()
                         if data["ocr"].strip():
-                            print(f"[{vid}] {t}ms | OCR: {data['ocr']}", flush=True)
+                            log_lines.append(f"[{vid}] {t}ms | OCR: {data['ocr']}")
                     if od_results is not None:
                         data["objects"] = [obj.lower() for obj in od_results[i]]
                         if data["objects"]:
-                            print(f"[{vid}] {t}ms | OD: {data['objects']}", flush=True)
+                            log_lines.append(f"[{vid}] {t}ms | OD: {data['objects']}")
+                    if caption_results is not None:
+                        data["caption"] = caption_results[i].lower()
+                        if data["caption"].strip():
+                            log_lines.append(f"[{vid}] {t}ms | Caption: {data['caption']}")
                     f.write(json.dumps(data, ensure_ascii=False) + "\n")
+            
+            if log_lines:
+                os.makedirs("logs", exist_ok=True)
+                with open(f"logs/results_{args.task}_shard_{args.shard_index}.log", "a", encoding="utf-8") as lf:
+                    lf.write("\n".join(log_lines) + "\n")
                     
             done += 1
             if done % 10 == 0:
-                print(f"  done {done}/{len(mine)} videos in {time.time()-t0:.0f}s", flush=True)
+                info_str = f"Task: {args.task}"
+                if args.task in ["ocr", "all"]:
+                    info_str += f" | OCR: {args.ocr_engine}({args.ocr_model})"
+                if args.task in ["od", "all"]:
+                    info_str += f" | OD: {args.od_engine}({args.od_model})"
+                if args.task in ["caption", "all"]:
+                    info_str += f" | Cap: {args.caption_engine}({args.caption_model})"
+                print(f"  [{info_str}] done {done}/{len(mine)} videos in {time.time()-t0:.0f}s", flush=True)
         except Exception as e:
             failed += 1
             with open(fail_log, "a") as fl:

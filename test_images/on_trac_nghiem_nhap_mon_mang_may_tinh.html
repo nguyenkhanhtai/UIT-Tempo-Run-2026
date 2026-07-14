@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ôn trắc nghiệm Nhập môn Mạng máy tính</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:960px;margin:auto;padding:20px;line-height:1.5;background:#f7f8fb;color:#1b1f24}
+.card{background:white;border:1px solid #dfe3e8;border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+button,select{font:inherit;padding:10px 14px;border-radius:9px;border:1px solid #b8c0cc;background:white;cursor:pointer}
+button.primary{background:#1456d9;color:white;border-color:#1456d9}
+button:disabled{opacity:.5;cursor:not-allowed}
+.option{display:block;border:1px solid #dfe3e8;border-radius:10px;padding:11px 13px;margin:9px 0;cursor:pointer}
+.option:hover{background:#f2f5fb}
+.option input{margin-right:9px}
+.correct{border-color:#2e8b57;background:#edf9f1}
+.wrong{border-color:#c0392b;background:#fff0ee}
+.muted{color:#667085}
+.topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.progress{height:10px;background:#e8ebf0;border-radius:10px;overflow:hidden}
+.progress>div{height:100%;background:#1456d9}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{text-align:center;padding:12px;background:#f3f5f9;border-radius:10px}
+.hidden{display:none}
+h1{font-size:1.6rem} h2{font-size:1.25rem}
+@media(max-width:650px){.stats{grid-template-columns:1fr}.topbar>*{flex:1}}
+</style>
+</head>
+<body>
+<h1>Ôn trắc nghiệm Nhập môn Mạng máy tính</h1>
+<p class="muted">Luyện nhanh theo chủ đề, tự chấm, lưu câu sai trên trình duyệt.</p>
+
+<div class="card">
+  <div class="topbar">
+    <label>Chế độ
+      <select id="mode">
+        <option value="practice">Luyện tập</option>
+        <option value="exam">Thi thử</option>
+        <option value="wrong">Ôn câu sai</option>
+      </select>
+    </label>
+    <label>Chủ đề
+      <select id="topic"><option value="all">Tất cả</option></select>
+    </label>
+    <label>Số câu
+      <select id="count"><option>10</option><option selected>20</option><option>30</option><option>50</option></select>
+    </label>
+    <button class="primary" id="start">Bắt đầu</button>
+    <button id="resetWrong">Xóa lịch sử câu sai</button>
+  </div>
+</div>
+
+<div id="quiz" class="hidden">
+  <div class="card">
+    <div class="topbar"><b id="counter"></b><span class="muted" id="topicLabel"></span></div>
+    <div class="progress"><div id="bar"></div></div>
+  </div>
+  <div class="card">
+    <h2 id="question"></h2>
+    <div id="options"></div>
+    <div id="explanation" class="hidden"></div>
+    <div class="topbar" style="margin-top:16px">
+      <button id="check" class="primary">Kiểm tra</button>
+      <button id="next" disabled>Câu tiếp theo</button>
+    </div>
+  </div>
+</div>
+
+<div id="result" class="card hidden">
+  <h2>Kết quả</h2>
+  <div class="stats">
+    <div class="stat"><b id="score"></b><br><span class="muted">Điểm</span></div>
+    <div class="stat"><b id="correctCount"></b><br><span class="muted">Đúng</span></div>
+    <div class="stat"><b id="wrongCount"></b><br><span class="muted">Sai</span></div>
+  </div>
+  <div id="review"></div>
+  <button class="primary" id="again">Làm đề khác</button>
+</div>
+
+<script>
+const BANK = [{"topic": "Subnet/IP", "q": "Subnet mask nào cung cấp 254 địa chỉ host sử dụng được trên một subnet?", "opts": ["255.255.0.0", "255.255.255.0", "255.255.254.0", "255.255.248.0"], "ans": 1, "exp": "Cần 8 bit host: 2^8 - 2 = 254, nên prefix /24 = 255.255.255.0."}, {"topic": "Subnet/IP", "q": "Broadcast của mạng lớp C 192.168.32.0 với subnet mặc định là gì?", "opts": ["192.168.0.0", "192.168.0.255", "192.168.32.0", "192.168.32.254", "192.168.32.255"], "ans": 4, "exp": "Mạng lớp C mặc định /24, broadcast là địa chỉ cuối: 192.168.32.255."}, {"topic": "Subnet/IP", "q": "Mạng 198.128.32.0 cần mỗi subnet có ít nhất 35 host. Subnet mask phù hợp là?", "opts": ["255.255.250.0", "255.255.255.64", "255.255.255.192", "255.255.254.0", "255.255.255.0"], "ans": 2, "exp": "Cần 6 bit host: 2^6 - 2 = 62 host, tương ứng /26 = 255.255.255.192."}, {"topic": "Subnet/IP", "q": "Địa chỉ lớp B có byte đầu tiên nằm trong khoảng nào?", "opts": ["1–127", "128–192", "128–191", "192–223"], "ans": 2, "exp": "Lớp B có octet đầu từ 128 đến 191."}, {"topic": "Subnet/IP", "q": "Một mạng lớp C với subnet mask mặc định có tối đa bao nhiêu host sử dụng được?", "opts": ["254", "255", "256", "510"], "ans": 0, "exp": "Có 8 bit host, số host dùng được là 2^8 - 2 = 254."}, {"topic": "Subnet/IP", "q": "IP 172.32.65.13 với subnet mask mặc định thuộc mạng nào?", "opts": ["172.32.65.0", "172.32.65.32", "172.32.0.0", "172.32.32.0"], "ans": 2, "exp": "172.x là lớp B, mask mặc định /16, nên network là 172.32.0.0."}, {"topic": "Subnet/IP", "q": "Mạng lớp C cần tạo ít nhất 5 subnet, mỗi subnet ít nhất 20 host. Mask phù hợp là?", "opts": ["255.255.255.0", "255.255.255.192", "255.255.255.224", "255.255.255.240"], "ans": 2, "exp": "/27 tạo 8 subnet, mỗi subnet có 30 host dùng được."}, {"topic": "Subnet/IP", "q": "Lớp B với subnet mask mặc định có bao nhiêu bit host?", "opts": ["8", "14", "16", "24"], "ans": 2, "exp": "Lớp B mặc định /16, nên còn 16 bit host."}, {"topic": "Subnet/IP", "q": "Mạng 192.168.4.0 dùng mask 255.255.255.224. Có bao nhiêu subnet và host dùng được trên mỗi subnet?", "opts": ["6 subnet, 32 host", "8 subnet, 30 host", "6 subnet, 30 host", "16 subnet, 32 host"], "ans": 1, "exp": "Mask /27 mượn 3 bit: 2^3=8 subnet; còn 5 bit host: 2^5-2=30."}, {"topic": "Subnet/IP", "q": "IP 198.101.6.55/28 có địa chỉ mạng và broadcast là?", "opts": ["Network 198.101.6.32, Broadcast 198.101.6.47", "Network 198.101.6.48, Broadcast 198.101.6.63", "Network 198.101.6.0, Broadcast 198.101.6.255", "Network 198.101.6.48, Broadcast 198.101.6.255"], "ans": 1, "exp": "/28 có block size 16. 55 nằm trong dải 48–63."}, {"topic": "Subnet/IP", "q": "IP 192.168.15.19/28 cùng subnet với cặp host nào?", "opts": ["192.168.15.17 và 192.168.15.29", "192.168.15.14 và 192.168.15.29", "192.168.15.16 và 192.168.15.31", "192.168.15.17 và 192.168.15.31"], "ans": 0, "exp": "Subnet là 192.168.15.16/28, host hợp lệ 17–30."}, {"topic": "Subnet/IP", "q": "Mạng 210.10.2.0/27 có bao nhiêu subnet và bao nhiêu host dùng được mỗi subnet?", "opts": ["30 subnet, 6 host", "8 subnet, 30 host", "6 subnet, 32 host", "32 subnet, 18 host"], "ans": 1, "exp": "Lớp C /24 sang /27: mượn 3 bit → 8 subnet; còn 5 bit host → 30 host."}, {"topic": "Subnet/IP", "q": "IP 201.100.5.68/28 thuộc subnet nào?", "opts": ["201.100.5.0", "201.100.5.32", "201.100.5.64", "201.100.5.65"], "ans": 2, "exp": "Block size 16, 68 nằm trong dải 64–79."}, {"topic": "Subnet/IP", "q": "Mạng 201.145.32.0/26 có bao nhiêu subnet và host dùng được trên mỗi subnet?", "opts": ["4 subnet, 64 host", "64 subnet, 4 host", "4 subnet, 62 host", "62 subnet, 2 host"], "ans": 2, "exp": "Lớp C /24 sang /26: 4 subnet, mỗi subnet 2^6-2=62 host."}, {"topic": "Subnet/IP", "q": "Mạng 27.35.16.32/28 có dải host hợp lệ nào?", "opts": ["32–47", "33–46", "33–47", "32–46"], "ans": 1, "exp": "Network là .32, broadcast là .47, host dùng được .33 đến .46."}, {"topic": "OSI", "q": "Thiết bị lớp 1 nào dùng để mở rộng mạng LAN?", "opts": ["Hub và Repeater", "Switch và Bridge", "Router và Switch", "Bridge và Router"], "ans": 0, "exp": "Hub và repeater hoạt động ở tầng Vật lý."}, {"topic": "OSI", "q": "Byte đầu của IP là 11000001₂. Địa chỉ thuộc lớp nào?", "opts": ["A", "B", "C", "D"], "ans": 2, "exp": "110xxxxx là lớp C; 11000001₂ = 193."}, {"topic": "OSI", "q": "Byte đầu của IP là 11100001₂. Địa chỉ thuộc lớp nào?", "opts": ["B", "C", "D", "E"], "ans": 2, "exp": "1110xxxx là lớp D."}, {"topic": "Giao thức", "q": "Giao thức nào truyền thông báo điều khiển và lỗi trong liên mạng?", "opts": ["ARP", "ICMP", "RARP", "TCP"], "ans": 1, "exp": "ICMP dùng cho thông báo điều khiển, lỗi và chẩn đoán."}, {"topic": "Lệnh mạng", "q": "Lệnh ping chủ yếu sử dụng loại thông điệp nào?", "opts": ["ICMP Echo Request/Reply", "TCP SYN/ACK", "ARP Request/Reply", "UDP Query/Response"], "ans": 0, "exp": "Ping dùng ICMP Echo Request và Echo Reply."}, {"topic": "OSI", "q": "Tầng nào thực hiện chọn đường và chuyển tiếp gói tin?", "opts": ["Session", "Network", "Transport", "Data Link"], "ans": 1, "exp": "Tầng Mạng chịu trách nhiệm định tuyến và chuyển tiếp."}, {"topic": "Cơ bản", "q": "Phương thức truyền nào cho phép hai bên đồng thời gửi dữ liệu?", "opts": ["Full-duplex", "Simplex", "Half-duplex", "Broadcast"], "ans": 0, "exp": "Full-duplex cho phép truyền hai chiều đồng thời."}, {"topic": "Giao thức", "q": "Cặp giao thức–cổng nào đúng?", "opts": ["SMTP–TCP 25", "FTP–UDP 22", "HTTP–UDP 80", "TFTP–TCP 69"], "ans": 0, "exp": "SMTP dùng TCP port 25. FTP dùng TCP 20/21; HTTP dùng TCP 80; TFTP dùng UDP 69."}, {"topic": "Topo/Thiết bị", "q": "Topo nào có tất cả trạm dùng chung một đường truyền chính?", "opts": ["Bus", "Star", "Ring", "Mesh"], "ans": 0, "exp": "Mạng bus dùng chung một backbone."}, {"topic": "Giao thức", "q": "Dịch vụ nào dùng để chuyển file giữa các máy qua mạng?", "opts": ["FTP", "Telnet", "Email", "WWW"], "ans": 0, "exp": "FTP là File Transfer Protocol."}, {"topic": "OSI", "q": "Tầng nào truyền thông tin qua liên kết vật lý theo dạng frame và hỗ trợ phát hiện lỗi?", "opts": ["Physical", "Data Link", "Network", "Transport"], "ans": 1, "exp": "Tầng Liên kết dữ liệu đóng gói frame và kiểm soát lỗi trên liên kết."}, {"topic": "Topo/Thiết bị", "q": "Thiết bị trung tâm thường dùng trong mạng hình sao là?", "opts": ["Switch/Hub", "Router", "Repeater", "NIC"], "ans": 0, "exp": "Các máy trong topo star kết nối vào switch hoặc hub trung tâm."}, {"topic": "Lệnh mạng", "q": "Lệnh Windows dùng để xác định đường đi qua các router là?", "opts": ["nslookup", "route", "ipconfig", "tracert"], "ans": 3, "exp": "tracert hiển thị từng hop trên đường đi."}, {"topic": "OSI", "q": "Tầng cao nhất của mô hình OSI cung cấp dịch vụ mạng trực tiếp cho ứng dụng người dùng là?", "opts": ["Transport", "Presentation", "Session", "Application"], "ans": 3, "exp": "Application là tầng 7."}, {"topic": "OSI", "q": "PDU của tầng 2 trong mô hình OSI được gọi là gì?", "opts": ["Frame", "Segment", "Packet", "Bit"], "ans": 0, "exp": "Tầng 2: Frame; tầng 3: Packet; tầng 4: Segment."}, {"topic": "Cơ bản", "q": "Mạng mà các máy vừa có thể là client vừa có thể là server gọi là?", "opts": ["Client/Server", "Ethernet", "Peer-to-Peer", "WAN"], "ans": 2, "exp": "Peer-to-Peer cho phép các máy ngang hàng chia sẻ trực tiếp."}, {"topic": "Cáp mạng", "q": "Theo nguyên tắc truyền thống, để nối trực tiếp hai PC bằng Ethernet dùng loại cáp nào?", "opts": ["Cáp chéo", "Cáp thẳng", "Rollover", "Cáp đồng trục"], "ans": 0, "exp": "Hai thiết bị cùng loại dùng cáp chéo; thiết bị hiện đại có Auto-MDI/MDIX có thể tự thích nghi."}, {"topic": "OSI", "q": "Mô hình OSI có bao nhiêu tầng?", "opts": ["7", "4", "5", "2"], "ans": 0, "exp": "OSI gồm 7 tầng."}, {"topic": "OSI", "q": "Tầng nào chịu trách nhiệm mã hóa và nén dữ liệu trong OSI?", "opts": ["Application", "Presentation", "Session", "Transport"], "ans": 1, "exp": "Presentation xử lý biểu diễn, mã hóa và nén dữ liệu."}, {"topic": "OSI", "q": "Thứ tự đóng gói đúng là?", "opts": ["Data → Segment → Packet → Frame → Bit", "Data → Packet → Segment → Frame → Bit", "Data → Frame → Packet → Segment → Bit", "Data → Segment → Frame → Packet → Bit"], "ans": 0, "exp": "Ứng dụng tạo Data, tầng vận chuyển tạo Segment, mạng tạo Packet, liên kết tạo Frame, vật lý truyền Bit."}, {"topic": "Topo/Thiết bị", "q": "Thiết bị nào nối các mạng khác nhau và kiểm soát broadcast domain?", "opts": ["Hub", "Bridge", "Switch lớp 2", "Router"], "ans": 3, "exp": "Router không chuyển tiếp broadcast lớp 2 giữa các mạng."}, {"topic": "Topo/Thiết bị", "q": "Switch lớp 2 quyết định chuyển frame dựa trên địa chỉ nào?", "opts": ["Source MAC", "Destination MAC", "Network address", "Subnet mask"], "ans": 1, "exp": "Switch tra bảng MAC bằng địa chỉ MAC đích."}, {"topic": "OSI", "q": "Router hoạt động chủ yếu ở tầng nào của OSI?", "opts": ["1", "2", "3", "4"], "ans": 2, "exp": "Router hoạt động ở tầng Mạng, layer 3."}, {"topic": "Cáp mạng", "q": "Độ dài tối đa thông dụng của một đoạn cáp UTP Ethernet là?", "opts": ["100 m", "185 m", "200 m", "500 m"], "ans": 0, "exp": "Ethernet trên cáp xoắn đôi thường giới hạn 100 m."}, {"topic": "Topo/Thiết bị", "q": "Công nghệ LAN nào sử dụng CSMA/CD?", "opts": ["Ethernet truyền thống", "Token Ring", "FDDI", "Wi-Fi"], "ans": 0, "exp": "CSMA/CD dùng trong Ethernet half-duplex chia sẻ môi trường."}, {"topic": "Topo/Thiết bị", "q": "Thiết bị nào giúp tách collision domain?", "opts": ["Hub", "Repeater", "Switch", "Transceiver"], "ans": 2, "exp": "Mỗi cổng switch là một collision domain riêng."}, {"topic": "Giao thức", "q": "Giao thức nào phân giải địa chỉ IP thành địa chỉ MAC trong LAN?", "opts": ["RARP", "DHCP", "ICMP", "ARP"], "ans": 3, "exp": "ARP ánh xạ IPv4 → MAC."}, {"topic": "Giao thức", "q": "TCP hoạt động ở tầng nào của OSI?", "opts": ["Transport", "Session", "Presentation", "Application"], "ans": 0, "exp": "TCP và UDP thuộc tầng Vận chuyển."}, {"topic": "Giao thức", "q": "Giao thức nào không đảm bảo giao hàng tin cậy, đúng thứ tự?", "opts": ["TCP", "HTTP", "ARP", "UDP"], "ans": 3, "exp": "UDP không thiết lập kết nối và không tự đảm bảo truyền lại."}, {"topic": "Cơ bản", "q": "Địa chỉ MAC có độ dài bao nhiêu?", "opts": ["8 bit", "24 bit", "36 bit", "48 bit"], "ans": 3, "exp": "MAC Ethernet dài 48 bit, thường viết thành 6 byte hex."}, {"topic": "Lệnh mạng", "q": "Lệnh nào hiển thị cấu hình IP trên Windows?", "opts": ["ip", "tcp_ip", "ftp", "ipconfig"], "ans": 3, "exp": "ipconfig hiển thị địa chỉ IP, mask, gateway, DNS..."}, {"topic": "Subnet/IP", "q": "Với mask 255.255.255.0, cặp nào cùng subnet?", "opts": ["192.168.1.3 và 192.168.100.1", "192.168.15.1 và 192.168.15.254", "192.168.100.15 và 192.186.100.16", "172.25.11.1 và 172.26.11.2"], "ans": 1, "exp": "Với /24, ba octet đầu phải giống nhau."}, {"topic": "Subnet/IP", "q": "Máy 192.168.1.1 dùng mask 255.255.255.224. Broadcast của subnet là?", "opts": ["192.168.1.31", "192.168.1.255", "192.168.1.15", "192.168.1.96"], "ans": 0, "exp": "/27 có block size 32; subnet đầu là 0–31."}, {"topic": "Giao thức", "q": "Khi A gửi ARP Request tìm MAC của B cùng subnet, điều gì xảy ra?", "opts": ["DNS trả lời", "Mọi máy nhận và mọi máy trả lời", "Mọi máy nhận nhưng chỉ B trả lời", "Router chuyển tiếp ARP"], "ans": 2, "exp": "ARP Request là broadcast trong LAN; chỉ host có IP được hỏi trả lời."}, {"topic": "Giao thức", "q": "Nếu A cần gửi đến Z ở subnet khác, A sẽ ARP để lấy MAC của ai?", "opts": ["MAC của Z", "MAC của DNS server", "MAC của default gateway", "Không cần MAC"], "ans": 2, "exp": "A gửi frame đến router/default gateway, nên cần MAC của cổng gateway cùng LAN."}, {"topic": "Định tuyến", "q": "OSPF sử dụng thuật toán định tuyến nào?", "opts": ["Flooding thuần túy", "Link State", "Distance Vector", "Path Vector"], "ans": 1, "exp": "OSPF là giao thức link-state, dùng thuật toán Dijkstra."}, {"topic": "Wi-Fi/Ethernet", "q": "Chuẩn nào sử dụng CSMA/CA?", "opts": ["IEEE 802.3", "IEEE 802.5", "IEEE 802.11", "IEEE 802.16"], "ans": 2, "exp": "Wi-Fi 802.11 sử dụng CSMA/CA."}, {"topic": "Giao thức", "q": "DNS thường sử dụng cổng nào?", "opts": ["21", "25", "53", "110"], "ans": 2, "exp": "DNS dùng port 53, chủ yếu UDP; TCP dùng cho một số trường hợp như zone transfer hoặc phản hồi lớn."}, {"topic": "Giao thức", "q": "POP3 sử dụng cổng mặc định nào?", "opts": ["110", "23", "25", "53"], "ans": 0, "exp": "POP3 mặc định TCP 110; POP3S thường dùng 995."}, {"topic": "TCP/UDP", "q": "Gói TCP đầu tiên yêu cầu thiết lập kết nối có cờ nào?", "opts": ["ACK=1, SYN=1", "ACK=1, SYN=0", "FIN=1, SYN=0", "ACK=0, SYN=1"], "ans": 3, "exp": "Bước 1 của 3-way handshake là SYN=1, ACK flag=0."}, {"topic": "Giao thức", "q": "Thứ tự đúng của quá trình DHCP là?", "opts": ["Discover → Offer → Request → ACK", "Request → ACK → Discover → Offer", "Discover → ACK → Request → Offer", "Offer → Discover → ACK → Request"], "ans": 0, "exp": "Ghi nhớ DORA: Discover, Offer, Request, Acknowledge."}, {"topic": "TCP/UDP", "q": "UDP header có độ dài cố định bao nhiêu byte?", "opts": ["4", "8", "16", "20"], "ans": 1, "exp": "UDP header gồm 4 trường × 16 bit = 8 byte."}, {"topic": "TCP/UDP", "q": "Checksum trong UDP dài bao nhiêu?", "opts": ["4 bit", "8 bit", "16 bit", "32 bit"], "ans": 2, "exp": "UDP checksum là trường 16 bit."}, {"topic": "TCP/UDP", "q": "UDP Length = 150 byte thì dữ liệu ứng dụng dài bao nhiêu?", "opts": ["142 byte", "150 byte", "158 byte", "134 byte"], "ans": 0, "exp": "Length gồm header 8 byte + data, nên data = 150 - 8 = 142 byte."}, {"topic": "TCP/UDP", "q": "TCP segment đầu có Sequence Number 100 và chứa 1000 byte. Segment kế tiếp có Sequence Number nào?", "opts": ["1101", "1100", "500", "501"], "ans": 1, "exp": "Sequence Number mới = 100 + 1000 = 1100."}, {"topic": "TCP/UDP", "q": "Sau khi gửi SYN với Seq=100, bên nhận gửi SYN-ACK có ACK number bằng?", "opts": ["100", "101", "200", "201"], "ans": 1, "exp": "SYN tiêu thụ một số thứ tự, nên ACK = 100 + 1 = 101."}, {"topic": "Giao thức", "q": "FTP dùng các cổng TCP mặc định nào?", "opts": ["20 và 21", "80 và 8080", "110 và 80", "53 và 69"], "ans": 0, "exp": "FTP control dùng TCP 21; data truyền thống dùng TCP 20."}, {"topic": "Giao thức", "q": "SMTP sử dụng cổng mặc định nào?", "opts": ["23", "25", "21", "110"], "ans": 1, "exp": "SMTP server-to-server truyền thống dùng TCP 25."}, {"topic": "Cơ bản", "q": "Địa chỉ IPv4 có bao nhiêu bit?", "opts": ["12", "22", "32", "42"], "ans": 2, "exp": "IPv4 dài 32 bit."}, {"topic": "Cáp mạng", "q": "Cáp UTP Cat5e dùng đầu nối nào?", "opts": ["RJ-58", "BNC", "RJ-45", "ST"], "ans": 2, "exp": "Ethernet cáp xoắn đôi dùng đầu RJ-45."}, {"topic": "Cáp mạng", "q": "Cáp UTP Cat5 có bao nhiêu đôi dây?", "opts": ["2", "4", "6", "8"], "ans": 1, "exp": "Cáp UTP Ethernet có 4 đôi, tức 8 sợi."}, {"topic": "Giao thức", "q": "HTTP là viết tắt của?", "opts": ["HyperText Transmission Protocol", "HyperText Transit Protocol", "HyperText Transfer Protocol", "HyperText Treat Protocol"], "ans": 2, "exp": "HTTP = HyperText Transfer Protocol."}, {"topic": "Giao thức", "q": "FTP là viết tắt của?", "opts": ["File Transfer Protocol", "Folder Transfer Protocol", "Fast Transfer Process", "File Transport Program"], "ans": 0, "exp": "FTP = File Transfer Protocol."}, {"topic": "OSI", "q": "Trong mô hình Internet, Unicode và định dạng JPG thường được xử lý ở tầng nào?", "opts": ["Application", "Transport", "Internet", "Network Access"], "ans": 0, "exp": "Mô hình Internet gộp chức năng Presentation vào Application."}, {"topic": "Cơ bản", "q": "Đơn vị cơ bản đo tốc độ truyền dữ liệu là?", "opts": ["Bit", "Byte", "bit/s (bps)", "Hz"], "ans": 2, "exp": "Tốc độ dữ liệu thường đo bằng bit trên giây."}];
+const topicSel=document.getElementById('topic');
+[...new Set(BANK.map(x=>x.topic))].sort().forEach(t=>{
+ const o=document.createElement('option');o.value=t;o.textContent=t;topicSel.appendChild(o);
+});
+let quiz=[], idx=0, score=0, answers=[], checked=false;
+const $=id=>document.getElementById(id);
+function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+function wrongSet(){return new Set(JSON.parse(localStorage.getItem('nmmmt_wrong')||'[]'))}
+function saveWrong(qi, isWrong){
+ const s=wrongSet(); if(isWrong)s.add(qi); else s.delete(qi);
+ localStorage.setItem('nmmmt_wrong',JSON.stringify([...s]));
+}
+function startQuiz(){
+ let pool=BANK.map((q,i)=>({...q,_id:i}));
+ const topic=$('topic').value;if(topic!=='all')pool=pool.filter(q=>q.topic===topic);
+ if($('mode').value==='wrong') pool=pool.filter(q=>wrongSet().has(q._id));
+ if(!pool.length){alert('Không có câu phù hợp. Hãy đổi chủ đề hoặc làm sai vài câu trước.');return}
+ quiz=shuffle(pool).slice(0,Math.min(+$('count').value,pool.length));
+ idx=0;score=0;answers=[];$('result').classList.add('hidden');$('quiz').classList.remove('hidden');render();
+}
+function render(){
+ checked=false; const q=quiz[idx];
+ $('counter').textContent=`Câu ${idx+1}/${quiz.length}`;
+ $('topicLabel').textContent=q.topic;
+ $('bar').style.width=((idx)/quiz.length*100)+'%';
+ $('question').textContent=q.q;
+ $('options').innerHTML='';
+ q.opts.forEach((op,i)=>{
+  const lab=document.createElement('label');lab.className='option';
+  lab.innerHTML=`<input type="radio" name="opt" value="${i}"> ${String.fromCharCode(65+i)}. ${op}`;
+  $('options').appendChild(lab);
+ });
+ $('explanation').className='hidden';$('explanation').innerHTML='';
+ $('check').disabled=false;$('next').disabled=true;
+ if($('mode').value==='exam') $('check').textContent='Lưu đáp án'; else $('check').textContent='Kiểm tra';
+}
+function check(){
+ const chosen=document.querySelector('input[name=opt]:checked');
+ if(!chosen){alert('Hãy chọn một đáp án.');return}
+ const val=+chosen.value,q=quiz[idx],ok=val===q.ans;
+ answers.push({q,chosen:val,ok});
+ if(ok)score++;
+ saveWrong(q._id,!ok);
+ if($('mode').value!=='exam'){
+   [...document.querySelectorAll('.option')].forEach((el,i)=>{
+    if(i===q.ans)el.classList.add('correct');
+    if(i===val&&!ok)el.classList.add('wrong');
+    el.querySelector('input').disabled=true;
+   });
+   $('explanation').className='';
+   $('explanation').innerHTML=`<p><b>${ok?'Chính xác':'Chưa đúng'}.</b> ${q.exp}</p>`;
+ }
+ checked=true;$('check').disabled=true;$('next').disabled=false;
+}
+function next(){
+ if(idx+1<quiz.length){idx++;render()}else finish();
+}
+function finish(){
+ $('quiz').classList.add('hidden');$('result').classList.remove('hidden');
+ $('score').textContent=Math.round(score/quiz.length*10)+' / 10';
+ $('correctCount').textContent=score+'/'+quiz.length;
+ $('wrongCount').textContent=(quiz.length-score)+'/'+quiz.length;
+ $('bar').style.width='100%';
+ const wrong=answers.filter(a=>!a.ok);
+ $('review').innerHTML=wrong.length?'<h3>Các câu cần xem lại</h3>'+wrong.map((a,i)=>
+ `<div class="card"><b>${i+1}. ${a.q.q}</b><p>Bạn chọn: ${String.fromCharCode(65+a.chosen)}. ${a.q.opts[a.chosen]}</p><p>Đáp án: ${String.fromCharCode(65+a.q.ans)}. ${a.q.opts[a.q.ans]}</p><p class="muted">${a.q.exp}</p></div>`).join('')
+ :'<p>Bạn đã làm đúng toàn bộ.</p>';
+}
+$('start').onclick=startQuiz;$('check').onclick=check;$('next').onclick=next;
+$('again').onclick=()=>{ $('result').classList.add('hidden'); startQuiz(); };
+$('resetWrong').onclick=()=>{localStorage.removeItem('nmmmt_wrong');alert('Đã xóa lịch sử câu sai.');};
+</script>
+</body>
+</html>

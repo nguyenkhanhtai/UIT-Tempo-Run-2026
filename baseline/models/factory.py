@@ -24,5 +24,22 @@ def get_od_model(engine: str, **kwargs):
     if engine == 'yolo':
         from .object_detection.yolo_model import YOLOModel
         return YOLOModel(**kwargs)
+    elif engine == 'florence2':
+        from .object_detection.florence2_od_model import Florence2ODModel
+        return Florence2ODModel(**kwargs)
+    elif engine == 'florence2_base':
+        from .object_detection.florence2_od_model import Florence2ODModel
+        return Florence2ODModel(model_name='microsoft/Florence-2-base', **{k: v for k, v in kwargs.items() if k != 'model_name'})
     else:
-        raise ValueError(f"Unknown OD engine: {engine}. Available: yolo")
+        raise ValueError(f"Unknown OD engine: {engine}. Available: yolo, florence2, florence2_base")
+
+def get_caption_model(engine: str, **kwargs):
+    engine = engine.lower()
+    if engine == 'florence2':
+        from .captioning.florence2_caption_model import Florence2CaptionModel
+        return Florence2CaptionModel(**kwargs)
+    elif engine == 'florence2_base':
+        from .captioning.florence2_caption_model import Florence2CaptionModel
+        return Florence2CaptionModel(model_name='microsoft/Florence-2-base', **{k: v for k, v in kwargs.items() if k != 'model_name'})
+    else:
+        raise ValueError(f"Unknown Caption engine: {engine}. Available: florence2, florence2_base")

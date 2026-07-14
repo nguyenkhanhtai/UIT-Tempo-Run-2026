@@ -1,0 +1,76 @@
+from .base_caption import BaseCaption
+import torch
+from PIL import Image
+import gc
+
+class Florence2CaptionModel(BaseCaption):
+    def __init__(self, model_name=None, device='cuda:0', **kwargs):
+        from ..florence2_shared import get_florence2
+        self.device = device
+        self.model_name = model_name or 'microsoft/Florence-2-large'
+        self.processor, self.model = get_florence2(self.model_name, self.device)
+        self.dtype = self.model.dtype
+
+    def extract(self, imgs: list, batch_size: int = 8, **kwargs) -> list:
+        if not imgs:
+            return []
+            
+        all_results = []
+        task_prompt = '<DETAILED_CAPTION>'
+        
+        # Ensure pad token exists
+        if self.processor.tokenizer.pad_token_id is None:
+            self.processor.tokenizer.pad_token_id = self.processor.tokenizer.eos_token_id
+            
+        for i in range(0, len(imgs), batch_size):
+            batch_imgs = imgs[i:i+batch_size]
+            pil_imgs = []
+            for img in batch_imgs:
+                if not isinstance(img, Image.Image):
+                    img = Image.fromarray(img).convert('RGB')
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                pil_imgs.append(img)
+                
+            inputs = self.processor(
+                text=[task_prompt] * len(pil_imgs),
+                images=pil_imgs,
+                return_tensors="pt"
+            ).to(self.device, self.dtype)
+            
+            # Florence-2 specific formatting
+            inputs["input_ids"] = inputs["input_ids"].to(torch.int64)
+            if "attention_mask" in inputs:
+                inputs["attention_mask"] = inputs["attention_mask"].to(torch.int64)
+                
+            generated_ids = self.model.generate(
+                input_ids=inputs["input_ids"],
+                pixel_values=inputs["pixel_values"],
+                attention_mask=inputs.get("attention_mask"),
+                max_new_tokens=1024,
+                num_beams=3,
+                do_sample=False,
+                use_cache=False
+            )
+            
+            generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)
+            
+            for j, text in enumerate(generated_text):
+                if self.processor.tokenizer.pad_token:
+                    text = text.replace(self.processor.tokenizer.pad_token, "")
+                parsed_answer = self.processor.post_process_generation(
+                    text, task=task_prompt, image_size=pil_imgs[j].size
+                )
+                
+                caption = parsed_answer.get(task_prompt, "")
+                if isinstance(caption, str):
+                    all_results.append(caption.strip())
+                else:
+                    all_results.append(str(caption))
+                
+            # Cleanup
+            del inputs
+            del generated_ids
+            
+        gc.collect()
+        return all_results

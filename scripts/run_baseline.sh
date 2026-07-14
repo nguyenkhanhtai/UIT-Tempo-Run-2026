@@ -42,11 +42,37 @@ VLMS=(
   # "EVA02-L-14,merged2b_s4b_b131k"
 )
 PRECISION="fp16"
+
+# --- CÁC MÔ HÌNH OCR GỢI Ý (Mở comment để sử dụng) ---
+# 1. EasyOCR (Nhanh, nhẹ, hỗ trợ nhiều ngôn ngữ)
 OCR_ENGINE="easyocr"
 OCR_MODEL="easyocr"
+
+# 2. PaddleOCR (Rất chính xác cho tiếng Anh và tiếng Việt, tốc độ tốt)
+# OCR_ENGINE="paddleocr"
+# OCR_MODEL="paddleocr"
+
+# 3. Florence-2 (Mô hình Vision-Language đa năng của Microsoft, siêu chính xác)
+# OCR_ENGINE="florence2"
+# OCR_MODEL="microsoft/Florence-2-large"
+# HOẶC bản Base nhẹ hơn:
+# OCR_ENGINE="florence2_base"
+# OCR_MODEL="microsoft/Florence-2-base"
+
+# 4. Vintern (Chuyên gia OCR tiếng Việt)
+# OCR_ENGINE="vintern"
+# OCR_MODEL="500L"
+
+# --- CÁC MÔ HÌNH OBJECT DETECTION GỢI Ý (Mở comment để sử dụng) ---
 OD_ENGINE="yolo"
-# yolov12n, yolov12s, yolov12m (YOLOv12 SOTA mới nhất dùng Area Attention), yolo11m (Ultralytics), yolov10m
+# Các phiên bản YOLO (yolov12n, yolov12s, yolov12m, yolo11m, yolov10m, v.v.) HOẶC florence2
 OD_MODEL="yolo11m.pt"
+
+# --- CÁC MÔ HÌNH IMAGE CAPTIONING GỢI Ý (Mở comment để sử dụng) ---
+# 1. Florence-2 (Tuỳ chọn số 1 cho Image Captioning)
+CAPTION_ENGINE="florence2"
+CAPTION_MODEL="microsoft/Florence-2-large"
+
 SHARDS=4
 BATCH_SIZE=116
 LIMIT_PER_SHARD=125 # Tổng 500 videos / 4 shards
@@ -98,39 +124,51 @@ echo "=========================================================="
 mkdir -p logs
 
 # User-defined batch sizes for Metadata extraction
-OCR_BATCH_SIZE=8
-OD_BATCH_SIZE=32
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
-# Run multiple OCR processes in parallel
 for i in $(seq 0 $((SHARDS-1))); do
   GPU_ID=$((i % NUM_GPUS))
   uv run python baseline/extract_metadata.py \
     --task ocr \
     --keyframes "$KF_DIR" \
     --out "$INDEX_DIR" \
+    --device "cuda:${GPU_ID}" \
     --ocr-engine "$OCR_ENGINE" \
     --ocr-model "$OCR_MODEL" \
     --batch-size $OCR_BATCH_SIZE \
-    --device "cuda:$GPU_ID" \
     --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
+wait
 
-echo ">>> Extracting Object Detection (Batch size: $OD_BATCH_SIZE)..."
-# Run multiple OD processes in parallel
+echo ">>> Extracting OD (Batch size: $OD_BATCH_SIZE)..."
 for i in $(seq 0 $((SHARDS-1))); do
   GPU_ID=$((i % NUM_GPUS))
   uv run python baseline/extract_metadata.py \
     --task od \
     --keyframes "$KF_DIR" \
     --out "$INDEX_DIR" \
+    --device "cuda:${GPU_ID}" \
     --od-engine "$OD_ENGINE" \
     --od-model "$OD_MODEL" \
     --batch-size $OD_BATCH_SIZE \
-    --device "cuda:$GPU_ID" \
     --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 wait
+
+echo ">>> Extracting Captions (Batch size: $OD_BATCH_SIZE)..."
+for i in $(seq 0 $((SHARDS-1))); do
+  GPU_ID=$((i % NUM_GPUS))
+  uv run python baseline/extract_metadata.py \
+    --task caption \
+    --keyframes "$KF_DIR" \
+    --out "$INDEX_DIR" \
+    --device "cuda:${GPU_ID}" \
+    --caption-engine "$CAPTION_ENGINE" \
+    --caption-model "$CAPTION_MODEL" \
+    --batch-size $OD_BATCH_SIZE \
+    --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
+done
 wait
 echo "-> Finished metadata extraction!"
 

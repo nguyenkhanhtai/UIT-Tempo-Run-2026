@@ -36,9 +36,10 @@ def load_index(shard_dir, meta_dir=None):
                             
         # Load legacy unified metadata (if any)
         load_jsonl_files(meta_dir)
-        # Load separated OCR and OD metadata
+        # Load separated OCR, OD, and Caption metadata
         load_jsonl_files(os.path.join(meta_dir, "ocr"))
         load_jsonl_files(os.path.join(meta_dir, "od"))
+        load_jsonl_files(os.path.join(meta_dir, "caption"))
 
     files = sorted(glob.glob(os.path.join(shard_dir, "*.npz")))
     for f in files:
