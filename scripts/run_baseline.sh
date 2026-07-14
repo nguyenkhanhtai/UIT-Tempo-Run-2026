@@ -48,20 +48,12 @@ PRECISION="fp16"
 OCR_ENGINE="easyocr"
 OCR_MODEL="easyocr"
 
-# 2. PaddleOCR (Rất chính xác cho tiếng Anh và tiếng Việt, tốc độ tốt)
-# OCR_ENGINE="paddleocr"
-# OCR_MODEL="paddleocr"
-
 # 3. Florence-2 (Mô hình Vision-Language đa năng của Microsoft, siêu chính xác)
 # OCR_ENGINE="florence2"
 # OCR_MODEL="microsoft/Florence-2-large"
 # HOẶC bản Base nhẹ hơn:
 # OCR_ENGINE="florence2_base"
 # OCR_MODEL="microsoft/Florence-2-base"
-
-# 4. Vintern (Chuyên gia OCR tiếng Việt)
-# OCR_ENGINE="vintern"
-# OCR_MODEL="500L"
 
 # --- CÁC MÔ HÌNH OBJECT DETECTION GỢI Ý (Mở comment để sử dụng) ---
 OD_ENGINE="yolo"

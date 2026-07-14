@@ -21,8 +21,6 @@ dependencies = [
     "tiktoken>=0.13.0",
     "einops",
     "setuptools",
-    "paddleocr>=2.10.0",
-    "paddlepaddle-gpu>=2.6.2",
 ]
 
 [[tool.uv.index]]
