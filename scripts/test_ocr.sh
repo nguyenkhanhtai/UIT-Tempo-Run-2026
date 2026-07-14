@@ -8,10 +8,10 @@ mkdir -p logs
 uv run python baseline/utils/test.py --task ocr --engine vintern --images "test_images/ocr_*.png"
 # Xoá model khỏi ổ cứng ngay sau khi chạy xong để tiết kiệm dung lượng
 rm -rf ~/.cache/huggingface/hub/*
-uv run python baseline/utils/test.py --task ocr --engine florence2 --images "test_images/ocr_*.png"
+uv run python baseline/utils/test.py --task ocr --engine florence2 --images "test_images/ocr_*.png" --batch-size 2
 rm -rf ~/.cache/huggingface/hub/*
 # Option 7: Florence-2-base
-uv run python baseline/utils/test.py --task ocr --engine florence2_base --images "test_images/ocr_*.png"
+uv run python baseline/utils/test.py --task ocr --engine florence2_base --images "test_images/ocr_*.png" --batch-size 4
 rm -rf ~/.cache/huggingface/hub/*
 
 # # Option 8: PaddleOCR

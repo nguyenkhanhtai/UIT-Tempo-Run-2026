@@ -7,6 +7,7 @@ uv run python baseline/utils/test.py \
     --task caption \
     --engine florence2 \
     --model "microsoft/Florence-2-large" \
-    --images "test_images/yolo_*.png"
+    --images "test_images/yolo_*.png" \
+    --batch-size 2
 # Xóa cache ổ cứng
 rm -rf ~/.cache/huggingface/hub/*

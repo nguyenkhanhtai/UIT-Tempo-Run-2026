@@ -13,6 +13,7 @@ def main():
     parser.add_argument("--engine", required=True, help="Engine (e.g. transformers, yolo, easyocr)")
     parser.add_argument("--model", default=None, help="Model name or weights path")
     parser.add_argument("--images", nargs='+', required=True, help="Path(s) or glob pattern(s) to input images")
+    parser.add_argument("--batch-size", type=int, default=4, help="Batch size for inference")
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
     
@@ -44,8 +45,8 @@ def main():
     if args.task == "ocr":
         print(f"[INIT] Loading OCR ({args.engine}: {args.model})...")
         ocr = get_ocr_model(engine=args.engine, model_name=args.model, device=args.device, use_gpu='cuda' in args.device)
-        print(f"[RUNNING] Extracting OCR features for {len(imgs)} images...")
-        results = ocr.extract(imgs)
+        print(f"[RUNNING] Extracting OCR features for {len(imgs)} images with batch_size={args.batch_size}...")
+        results = ocr.extract(imgs, batch_size=args.batch_size)
         
         # Free RAM/VRAM immediately after extraction
         del ocr
@@ -60,8 +61,8 @@ def main():
     elif args.task == "od":
         print(f"[INIT] Loading OD ({args.engine}: {args.model})...")
         od = get_od_model(engine=args.engine, model_name=args.model, device=args.device)
-        print(f"[RUNNING] Extracting Objects for {len(imgs)} images...")
-        results = od.extract(imgs)
+        print(f"[RUNNING] Extracting Objects for {len(imgs)} images with batch_size={args.batch_size}...")
+        results = od.extract(imgs, batch_size=args.batch_size)
         
         # Free RAM/VRAM immediately after extraction
         del od
@@ -82,8 +83,8 @@ def main():
     elif args.task == "caption":
         print(f"[INIT] Loading Caption ({args.engine}: {args.model})...")
         caption_model = get_caption_model(engine=args.engine, model_name=args.model, device=args.device)
-        print(f"[RUNNING] Extracting Captions for {len(imgs)} images...")
-        results = caption_model.extract(imgs)
+        print(f"[RUNNING] Extracting Captions for {len(imgs)} images with batch_size={args.batch_size}...")
+        results = caption_model.extract(imgs, batch_size=args.batch_size)
         
         # Free RAM/VRAM immediately after extraction
         del caption_model
