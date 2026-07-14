@@ -21,6 +21,7 @@ dependencies = [
     "tiktoken>=0.13.0",
     "einops",
     "setuptools",
+    "sentence-transformers",
 ]
 
 [[tool.uv.index]]
