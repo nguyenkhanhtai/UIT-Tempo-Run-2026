@@ -7,4 +7,4 @@ uv run python baseline/utils/test.py \
     --task caption \
     --engine florence2 \
     --model "microsoft/Florence-2-large" \
-    --images "test_images/yolo_*.png" 2>&1 | tee logs/test_caption.log
+    --images "test_images/yolo_*.png"
