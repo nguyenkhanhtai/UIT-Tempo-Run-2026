@@ -38,7 +38,8 @@ def load_frames(vdir):
         try:
             imgs.append(Image.open(files[i]).convert("RGB"))
             kept_ts.append(int(ts[i]))
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Failed to load frame {files[i]}: {e}", flush=True)
             continue
     return imgs, kept_ts
 

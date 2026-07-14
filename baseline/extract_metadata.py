@@ -29,7 +29,8 @@ def load_frames(vdir: Path):
             im.load()
             imgs.append(im)
             ts.append(int(ts_array[i]))
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Failed to load frame {f}: {e}", flush=True)
             continue
     return imgs, ts
 
