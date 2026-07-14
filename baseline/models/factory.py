@@ -2,7 +2,7 @@ from .ocr.florence2_ocr_model import Florence2OCRModel
 
 def get_ocr_model(engine: str, **kwargs):
     engine = engine.lower()
-    elif engine == 'florence2':
+    if engine == 'florence2':
         return Florence2OCRModel(**kwargs)
     elif engine == 'florence2_base':
         # Reuse Florence2OCRModel but point to the base version
@@ -35,5 +35,8 @@ def get_caption_model(engine: str, **kwargs):
     elif engine == 'florence2_base':
         from .captioning.florence2_caption_model import Florence2CaptionModel
         return Florence2CaptionModel(model_name='microsoft/Florence-2-base', **{k: v for k, v in kwargs.items() if k != 'model_name'})
+    elif engine == 'blip':
+        from .captioning.blip_caption_model import BlipCaptionModel
+        return BlipCaptionModel(**kwargs)
     else:
-        raise ValueError(f"Unknown Caption engine: {engine}. Available: florence2, florence2_base")
+        raise ValueError(f"Unknown Caption engine: {engine}. Available: florence2, florence2_base, blip")

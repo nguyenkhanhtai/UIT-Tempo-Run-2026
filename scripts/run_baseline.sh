@@ -65,6 +65,10 @@ OD_MODEL="yolo11m.pt"
 CAPTION_ENGINE="florence2"
 CAPTION_MODEL="microsoft/Florence-2-large"
 
+# 2. BLIP (Rất nhẹ, nhanh, tốn ít VRAM, sinh câu tiếng Anh chuẩn xác)
+# CAPTION_ENGINE="blip"
+# CAPTION_MODEL="Salesforce/blip-image-captioning-base"
+
 # --- CÁC TÙY CHỌN DÙNG METADATA ĐỂ CHẤM ĐIỂM VÀ LỌC KẾT QUẢ ---
 # Đổi thành "false" nếu bạn không muốn dùng tính năng tương ứng khi chấm điểm (Stage 4)
 USE_OCR="true"

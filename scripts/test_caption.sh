@@ -11,3 +11,11 @@ uv run python baseline/utils/test.py \
     --batch-size 2
 # Xóa cache ổ cứng
 rm -rf ~/.cache/huggingface/hub/*
+
+uv run python baseline/utils/test.py \
+    --task caption \
+    --engine blip \
+    --model "Salesforce/blip-image-captioning-base" \
+    --images "test_images/yolo_*.png" \
+    --batch-size 4
+rm -rf ~/.cache/huggingface/hub/*
