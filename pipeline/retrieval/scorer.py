@@ -89,22 +89,22 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
         unique_caption_queries = list(set(q[2] for q in qi_to_queries.values() if q[2]))
         if unique_caption_queries:
             try:
-                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
+                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=True)
             except Exception as e:
                 print(f"[retrieve] GPU encode failed ({e}), falling back to CPU...", flush=True)
                 st_model = st_model.to('cpu')
-                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
+                q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=True)
             query_caption_to_idx = {q: i for i, q in enumerate(unique_caption_queries)}
             
         unique_meta_captions = list(set(meta.get("caption", "") for meta_dict in metadata.values() for meta in meta_dict.values() if meta.get("caption")))
         if unique_meta_captions:
             print(f"[retrieve] Encoding {len(unique_meta_captions)} unique image captions with ST...", flush=True)
             try:
-                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
+                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=True)
             except Exception as e:
                 print(f"[retrieve] GPU batch encode failed ({e}), falling back to CPU...", flush=True)
                 st_model = st_model.to('cpu')
-                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
+                m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=True)
             meta_caption_to_idx = {c: i for i, c in enumerate(unique_meta_captions)}
 
         # GPU MATRIX MULTIPLICATION (Parallel computation)
