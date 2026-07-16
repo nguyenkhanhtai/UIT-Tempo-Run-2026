@@ -135,12 +135,15 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
 
     def process_chunk(start_r, end_r):
         chunk_updates = []
+        frames_processed = 0
         for r in range(start_r, end_r):
+            frames_processed += 1
             v = str(vids[r])
             center = int(ts[r])
             if v in metadata and center in metadata[v]:
                 meta = metadata[v][center]
                 meta_ocr = meta.get("ocr", "")
+                meta_ocr_lower = meta_ocr.lower()
                 meta_objs = meta.get("objects", [])
                 meta_caption = meta.get("caption", "")
                 meta_words = set(w for obj in meta_objs for w in obj.lower().split())
@@ -149,7 +152,8 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                     bonus = 0.0
                     if ocr_query and USE_OCR:
                         for q in ocr_query:
-                            sim = get_ocr_similarity(q, meta_ocr)
+                            # Pass pre-lowered strings to avoid redundant .lower() calls
+                            sim = get_ocr_similarity(q, meta_ocr_lower)
                             bonus += 0.15 * math.exp(4 * (sim - 1.0))
                     if object_query and USE_OD:
                         for qw in object_query:
@@ -170,18 +174,20 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                             bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3
                     if bonus > 0:
                         chunk_updates.append((qi, r, bonus))
-        return chunk_updates
+        return frames_processed, chunk_updates
 
     print("[retrieve] Computing metadata scores across all frames...", flush=True)
-    CHUNK_SIZE = 5000
+    CHUNK_SIZE = 500  # Giảm chunk size để progress bar mượt hơn
     chunks = [(s, min(s + CHUNK_SIZE, N)) for s in range(0, N, CHUNK_SIZE)]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         futures = [executor.submit(process_chunk, s, e) for s, e in chunks]
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(chunks), desc="Metadata Scoring"):
-            updates = future.result()
-            for qi, r, bonus in updates:
-                B[qi, r] = bonus
+        with tqdm(total=N, desc="Metadata Scoring") as pbar:
+            for future in concurrent.futures.as_completed(futures):
+                frames_processed, updates = future.result()
+                for qi, r, bonus in updates:
+                    B[qi, r] = bonus
+                pbar.update(frames_processed)
     
     if use_st:
         del st_model
