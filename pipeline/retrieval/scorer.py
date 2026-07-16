@@ -81,8 +81,10 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     if not qi_to_queries:
         return B
         
-    query_emb_dict = {}
-    meta_emb_dict = {}
+    query_caption_to_idx = {}
+    meta_caption_to_idx = {}
+    sim_matrix = None
+
     if use_st:
         unique_caption_queries = list(set(q[2] for q in qi_to_queries.values() if q[2]))
         if unique_caption_queries:
@@ -92,7 +94,7 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                 print(f"[retrieve] GPU encode failed ({e}), falling back to CPU...", flush=True)
                 st_model = st_model.to('cpu')
                 q_embs = st_model.encode(unique_caption_queries, convert_to_tensor=True, show_progress_bar=False)
-            query_emb_dict = {q: q_embs[i] for i, q in enumerate(unique_caption_queries)}
+            query_caption_to_idx = {q: i for i, q in enumerate(unique_caption_queries)}
             
         unique_meta_captions = list(set(meta.get("caption", "") for meta_dict in metadata.values() for meta in meta_dict.values() if meta.get("caption")))
         if unique_meta_captions:
@@ -103,44 +105,65 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                 print(f"[retrieve] GPU batch encode failed ({e}), falling back to CPU...", flush=True)
                 st_model = st_model.to('cpu')
                 m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=False)
-            meta_emb_dict = {c: m_embs[i] for i, c in enumerate(unique_meta_captions)}
+            meta_caption_to_idx = {c: i for i, c in enumerate(unique_meta_captions)}
 
+        # GPU MATRIX MULTIPLICATION (Parallel computation)
+        if unique_caption_queries and unique_meta_captions:
+            # util.cos_sim calculates pairwise similarities, output shape: [len(queries), len(captions)]
+            sim_matrix = util.cos_sim(q_embs, m_embs).cpu().numpy()
         
-    for r in range(N):
-        v = str(vids[r])
-        center = int(ts[r])
-        if v in metadata and center in metadata[v]:
-            meta = metadata[v][center]
-            meta_ocr = meta.get("ocr", "")
-            meta_objs = meta.get("objects", [])
-            meta_caption = meta.get("caption", "")
-            meta_words = set(w for obj in meta_objs for w in obj.lower().split())
-            
-            for qi, (ocr_query, object_query, caption_query) in qi_to_queries.items():
-                bonus = 0.0
-                if ocr_query and USE_OCR:
-                    for q in ocr_query:
-                        sim = get_ocr_similarity(q, meta_ocr)
-                        bonus += 0.15 * math.exp(4 * (sim - 1.0))
-                if object_query and USE_OD:
-                    for qw in object_query:
-                        if qw in meta_words:
-                            bonus += 0.05
-                if meta_caption and USE_CAPTIONING:
-                    if use_st:
-                        q_emb = query_emb_dict.get(caption_query)
-                        m_emb = meta_emb_dict.get(meta_caption)
-                        if q_emb is not None and m_emb is not None:
-                            cap_sim = util.cos_sim(q_emb, m_emb).item()
+    import concurrent.futures
+    from tqdm import tqdm
+
+    def process_chunk(start_r, end_r):
+        chunk_updates = []
+        for r in range(start_r, end_r):
+            v = str(vids[r])
+            center = int(ts[r])
+            if v in metadata and center in metadata[v]:
+                meta = metadata[v][center]
+                meta_ocr = meta.get("ocr", "")
+                meta_objs = meta.get("objects", [])
+                meta_caption = meta.get("caption", "")
+                meta_words = set(w for obj in meta_objs for w in obj.lower().split())
+                
+                for qi, (ocr_query, object_query, caption_query) in qi_to_queries.items():
+                    bonus = 0.0
+                    if ocr_query and USE_OCR:
+                        for q in ocr_query:
+                            sim = get_ocr_similarity(q, meta_ocr)
+                            bonus += 0.15 * math.exp(4 * (sim - 1.0))
+                    if object_query and USE_OD:
+                        for qw in object_query:
+                            if qw in meta_words:
+                                bonus += 0.05
+                    if meta_caption and USE_CAPTIONING:
+                        if use_st and sim_matrix is not None:
+                            q_idx = query_caption_to_idx.get(caption_query)
+                            m_idx = meta_caption_to_idx.get(meta_caption)
+                            if q_idx is not None and m_idx is not None:
+                                cap_sim = float(sim_matrix[q_idx, m_idx])
+                            else:
+                                cap_sim = 0.0
                         else:
-                            cap_sim = 0.0
-                    else:
-                        cap_sim = get_caption_similarity(caption_query, meta_caption)
-                        
-                    if cap_sim > 0.4:  # Hạ nhẹ ngưỡng trùng lặp từ 0.5 xuống 0.4 để dễ ăn điểm hơn
-                        bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3                
-                if bonus > 0:
-                    B[qi, r] = bonus
+                            cap_sim = get_caption_similarity(caption_query, meta_caption)
+                            
+                        if cap_sim > 0.4:  # Hạ nhẹ ngưỡng trùng lặp từ 0.5 xuống 0.4 để dễ ăn điểm hơn
+                            bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3
+                    if bonus > 0:
+                        chunk_updates.append((qi, r, bonus))
+        return chunk_updates
+
+    print("[retrieve] Computing metadata scores across all frames...", flush=True)
+    CHUNK_SIZE = 5000
+    chunks = [(s, min(s + CHUNK_SIZE, N)) for s in range(0, N, CHUNK_SIZE)]
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = [executor.submit(process_chunk, s, e) for s, e in chunks]
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(chunks), desc="Metadata Scoring"):
+            updates = future.result()
+            for qi, r, bonus in updates:
+                B[qi, r] = bonus
     
     if use_st:
         del st_model
