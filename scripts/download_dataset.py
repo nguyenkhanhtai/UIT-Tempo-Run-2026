@@ -1,20 +1,11 @@
 import os
 import time
 import zipfile
-import shutil
 import subprocess
-
 import json
 
-def run_rclone_copyto(source, dest):
-    """Run rclone copyto to download a file and optionally rename it"""
-    cmd = [
-        "rclone", "copyto", source, dest,
-        "--progress"
-    ]
-    
-    # Create a local rclone.conf file dynamically
-    script_dir = os.path.dirname(__file__)
+def create_rclone_config(script_dir):
+    """Create a local rclone.conf file dynamically if token exists"""
     token_path = os.path.join(script_dir, 'rclone_token.json')
     conf_path = os.path.join(script_dir, 'local_rclone.conf')
     
@@ -25,121 +16,104 @@ def run_rclone_copyto(source, dest):
             
         with open(conf_path, 'w') as f:
             f.write(f"[drive]\ntype = drive\ntoken = {token_string}\n")
-            
-        # Add --config flag to use the generated local conf
+        return conf_path
+    return None
+
+def cleanup_rclone_config(conf_path):
+    """Remove the temporary local_rclone.conf file"""
+    if conf_path and os.path.exists(conf_path):
+        os.remove(conf_path)
+
+def run_rclone_copyto(source, dest, conf_path=None):
+    """Run rclone copyto to download a file and optionally rename it"""
+    cmd = [
+        "rclone", "copyto", source, dest,
+        "--progress"
+    ]
+    if conf_path:
         cmd.extend(["--config", conf_path])
-    
+        
     print(f"Running command: {' '.join(cmd)}")
     result = subprocess.run(cmd)
     return result.returncode == 0
 
+def download_with_retry(source, dest, desc, conf_path=None, max_retries=5):
+    """Download a file with retries"""
+    print("\n" + "="*40)
+    print(f"Downloading {desc} using rclone...")
+    
+    for attempt in range(1, max_retries + 1):
+        print(f"Starting download with rclone (Attempt {attempt})...")
+        if run_rclone_copyto(source, dest, conf_path):
+            print(f"Successfully downloaded 100% of {desc}!")
+            return True
+        else:
+            print(f"Download failed on attempt {attempt}.")
+            if attempt < max_retries:
+                print("Waiting 10 seconds before retrying...")
+                time.sleep(10)
+                
+    print(f"Exceeded maximum retries for {desc}. Please check your rclone config or internet connection.")
+    return False
+
+def extract_and_cleanup_zip(zip_path, extract_dir, desc):
+    """Extract a zip file and delete it to save space"""
+    print("\n" + "="*40)
+    if not os.path.exists(zip_path):
+        print(f"{desc} not found. The download process might have failed.")
+        return
+        
+    print(f"Extracting {desc}...")
+    os.makedirs(extract_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_dir)
+    print("Extraction completed!")
+    
+    print(f"Deleting {zip_path} to save space...")
+    try:
+        os.remove(zip_path)
+        print("Deleted successfully!")
+    except Exception as e:
+        print(f"Warning: Failed to delete the zip file: {e}")
+
 def main():
-    # Define the path to save the dataset
     script_dir = os.path.dirname(__file__)
     dataset_dir = os.path.abspath(os.path.join(script_dir, '..', 'dataset'))
-    
-    # Create the directory if it does not exist
-    os.makedirs(dataset_dir, exist_ok=True)
-    print(f"Storage directory: {dataset_dir}")
-    
-    # 1. Download Public round tasks.jsonl
-    print("\n" + "="*40)
-    print("Downloading Public round tasks.jsonl using rclone...")
-    # NOTE: Thay đổi 'drive:' thành tên remote của bạn nếu khác
-    jsonl_source = "drive:AI Tempo Run/public_round_tasks.json"
-    jsonl_dest = os.path.join(dataset_dir, "Public_round_tasks.jsonl")
-    if not run_rclone_copyto(jsonl_source, jsonl_dest):
-        print("Failed to download Public_round_tasks.jsonl")
-    else:
-        print("Successfully downloaded Public_round_tasks.jsonl!")
-    
-    # 2. Download Video V3C.zip
-    print("\n" + "="*40)
-    print("Downloading Video V3C.zip using rclone (supports automatic resume)...")
-    
-    zip_source = "drive:AI Tempo Run/V3C.zip"
-    zip_output = os.path.join(dataset_dir, "Video_V3C.zip")
-    
-    max_retries = 5
-    for attempt in range(1, max_retries + 1):
-        print(f"Starting download with rclone (Attempt {attempt})...")
-        if run_rclone_copyto(zip_source, zip_output):
-            print("Successfully downloaded 100% of Video V3C.zip!")
-            break
-        else:
-            print(f"Download failed on attempt {attempt}.")
-            if attempt < max_retries:
-                print("Waiting 10 seconds before retrying...")
-                time.sleep(10)
-    else:
-        print("Exceeded maximum retries. Please check your rclone config or internet connection.")
-        return
-    
-    # 3. Extract the zip file
-    print("\n" + "="*40)
-    if os.path.exists(zip_output):
-        print("Extracting Video V3C.zip...")
-        extract_dir = os.path.join(dataset_dir, "Video_V3C")
-        os.makedirs(extract_dir, exist_ok=True)
-        with zipfile.ZipFile(zip_output, 'r') as zip_ref:
-            zip_ref.extractall(extract_dir)
-        print("Extraction completed!")
-        
-        # Delete zip file to save space
-        print(f"Deleting {zip_output} to save space...")
-        try:
-            os.remove(zip_output)
-            print("Deleted successfully!")
-        except Exception as e:
-            print(f"Warning: Failed to delete the zip file: {e}")
-    else:
-        print("Video V3C.zip not found. The download process might have failed.")
-    
-    # 4. Download artifacts.zip
-    print("\n" + "="*40)
-    print("Downloading artifacts.zip using rclone (supports automatic resume)...")
-    
     artifacts_dir = os.path.abspath(os.path.join(script_dir, '..', 'artifacts'))
+    
+    os.makedirs(dataset_dir, exist_ok=True)
     os.makedirs(artifacts_dir, exist_ok=True)
-    artifacts_source = "drive:AI Tempo Run/artifacts.zip"
-    artifacts_output = os.path.join(artifacts_dir, "artifacts.zip")
     
-    for attempt in range(1, max_retries + 1):
-        print(f"Starting download with rclone (Attempt {attempt})...")
-        if run_rclone_copyto(artifacts_source, artifacts_output):
-            print("Successfully downloaded 100% of artifacts.zip!")
-            break
-        else:
-            print(f"Download failed on attempt {attempt}.")
-            if attempt < max_retries:
-                print("Waiting 10 seconds before retrying...")
-                time.sleep(10)
-    else:
-        print("Exceeded maximum retries for artifacts.zip. Please check your rclone config or internet connection.")
-        return
-
-    # 5. Extract artifacts.zip
-    print("\n" + "="*40)
-    if os.path.exists(artifacts_output):
-        print("Extracting artifacts.zip...")
-        with zipfile.ZipFile(artifacts_output, 'r') as zip_ref:
-            zip_ref.extractall(artifacts_dir)
-        print("Extraction completed!")
+    print(f"Dataset directory: {dataset_dir}")
+    print(f"Artifacts directory: {artifacts_dir}")
+    
+    # 1. Setup Rclone Configuration
+    conf_path = create_rclone_config(script_dir)
+    
+    try:
+        # 2. Download Public round tasks.jsonl
+        jsonl_source = "drive:AI Tempo Run/public_round_tasks.json"
+        jsonl_dest = os.path.join(dataset_dir, "Public_round_tasks.jsonl")
+        download_with_retry(jsonl_source, jsonl_dest, "Public round tasks.jsonl", conf_path)
         
-        # Delete zip file to save space
-        print(f"Deleting {artifacts_output} to save space...")
-        try:
-            os.remove(artifacts_output)
-            print("Deleted successfully!")
-        except Exception as e:
-            print(f"Warning: Failed to delete the zip file: {e}")
-    else:
-        print("artifacts.zip not found. The download process might have failed.")
-    
-    # Cleanup local_rclone.conf
-    conf_path = os.path.join(script_dir, 'local_rclone.conf')
-    if os.path.exists(conf_path):
-        os.remove(conf_path)
+        # 3. Download and Extract artifacts.zip
+        artifacts_source = "drive:AI Tempo Run/artifacts.zip"
+        artifacts_dest = os.path.join(artifacts_dir, "artifacts.zip")
+        if download_with_retry(artifacts_source, artifacts_dest, "artifacts.zip", conf_path):
+            extract_and_cleanup_zip(artifacts_dest, artifacts_dir, "artifacts.zip")
+
+        # 4. Download and Extract Video V3C.zip
+        zip_source = "drive:AI Tempo Run/V3C.zip"
+        zip_dest = os.path.join(dataset_dir, "Video_V3C.zip")
+        if download_with_retry(zip_source, zip_dest, "Video V3C.zip", conf_path):
+            extract_dir = os.path.join(dataset_dir, "Video_V3C")
+            extract_and_cleanup_zip(zip_dest, extract_dir, "Video V3C.zip")
+        
+
+            
+    finally:
+        # 5. Cleanup local_rclone.conf regardless of success/failure
+        cleanup_rclone_config(conf_path)
         
     print("\nScript completed successfully!")
 
