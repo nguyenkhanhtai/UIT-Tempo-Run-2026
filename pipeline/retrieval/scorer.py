@@ -117,7 +117,7 @@ def get_caption_similarity(query, caption):
     overlap = len(query.intersection(caption))
     return overlap / len(query)
 
-def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
+def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata, return_components=False):
     import numpy as np
     from .parser import extract_ocr_queries, extract_object_queries
     
@@ -125,6 +125,10 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     N = len(vids)
     print(N)
     B = np.zeros((T_all, N), dtype=np.float32)
+    B_ocr = np.zeros((T_all, N), dtype=np.float32) if return_components else None
+    B_od = np.zeros((T_all, N), dtype=np.float32) if return_components else None
+    B_cap = np.zeros((T_all, N), dtype=np.float32) if return_components else None
+
     
     t0 = time.time()
     
