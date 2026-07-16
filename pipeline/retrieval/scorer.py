@@ -13,6 +13,57 @@ USE_OCR = True
 USE_OD = True
 USE_CAPTIONING = True
 
+# --- GLOBAL VARS FOR MULTIPROCESSING ---
+_G_vids = None
+_G_ts = None
+_G_metadata = None
+_G_qi_to_queries = None
+_G_sim_matrix = None
+_G_query_caption_to_idx = None
+_G_meta_caption_to_idx = None
+_G_use_st = False
+
+def _worker_process_chunk(start_r, end_r):
+    chunk_updates = []
+    frames_processed = 0
+    for r in range(start_r, end_r):
+        frames_processed += 1
+        v = str(_G_vids[r])
+        center = int(_G_ts[r])
+        if v in _G_metadata and center in _G_metadata[v]:
+            meta = _G_metadata[v][center]
+            meta_ocr_lower = meta.get("ocr", "").lower()
+            meta_objs = meta.get("objects", [])
+            meta_caption = meta.get("caption", "")
+            meta_words = set(w for obj in meta_objs for w in obj.lower().split())
+            
+            for qi, (ocr_query, object_query, caption_query) in _G_qi_to_queries.items():
+                bonus = 0.0
+                if ocr_query and USE_OCR:
+                    for q in ocr_query:
+                        sim = get_ocr_similarity(q, meta_ocr_lower)
+                        bonus += 0.15 * math.exp(4 * (sim - 1.0))
+                if object_query and USE_OD:
+                    for qw in object_query:
+                        if qw in meta_words:
+                            bonus += 0.05
+                if meta_caption and USE_CAPTIONING:
+                    if _G_use_st and _G_sim_matrix is not None:
+                        q_idx = _G_query_caption_to_idx.get(caption_query)
+                        m_idx = _G_meta_caption_to_idx.get(meta_caption)
+                        if q_idx is not None and m_idx is not None:
+                            cap_sim = float(_G_sim_matrix[q_idx, m_idx])
+                        else:
+                            cap_sim = 0.0
+                    else:
+                        cap_sim = get_caption_similarity(caption_query, meta_caption)
+                        
+                    if cap_sim > 0.4:
+                        bonus += 0.3 * cap_sim
+                if bonus > 0:
+                    chunk_updates.append((qi, r, bonus))
+    return frames_processed, chunk_updates
+
 def get_ocr_similarity(query, text):
     if not query or not text:
         return 0.0
@@ -125,63 +176,37 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
                 m_embs = st_model.encode(unique_meta_captions, batch_size=256, convert_to_tensor=True, show_progress_bar=True)
             meta_caption_to_idx = {c: i for i, c in enumerate(unique_meta_captions)}
 
-        # GPU MATRIX MULTIPLICATION (Parallel computation)
+        # GPU MATRIX MULTIPLICATION (Chunked to save VRAM and align with batching concept)
         if unique_caption_queries and unique_meta_captions:
-            # util.cos_sim calculates pairwise similarities, output shape: [len(queries), len(captions)]
-            sim_matrix = util.cos_sim(q_embs, m_embs).cpu().numpy()
+            sim_matrix = np.zeros((q_embs.shape[0], m_embs.shape[0]), dtype=np.float32)
+            CH_sim = 10000
+            for s in range(0, m_embs.shape[0], CH_sim):
+                e = min(s + CH_sim, m_embs.shape[0])
+                m_chunk = m_embs[s:e]
+                sim_matrix[:, s:e] = util.cos_sim(q_embs, m_chunk).cpu().numpy()
         
-    import concurrent.futures
-    from tqdm import tqdm
+    global _G_vids, _G_ts, _G_metadata, _G_qi_to_queries, _G_sim_matrix, _G_query_caption_to_idx, _G_meta_caption_to_idx, _G_use_st
+    _G_vids = vids
+    _G_ts = ts
+    _G_metadata = metadata
+    _G_qi_to_queries = qi_to_queries
+    _G_sim_matrix = sim_matrix
+    _G_query_caption_to_idx = query_caption_to_idx
+    _G_meta_caption_to_idx = meta_caption_to_idx
+    _G_use_st = use_st
 
-    def process_chunk(start_r, end_r):
-        chunk_updates = []
-        frames_processed = 0
-        for r in range(start_r, end_r):
-            frames_processed += 1
-            v = str(vids[r])
-            center = int(ts[r])
-            if v in metadata and center in metadata[v]:
-                meta = metadata[v][center]
-                meta_ocr = meta.get("ocr", "")
-                meta_ocr_lower = meta_ocr.lower()
-                meta_objs = meta.get("objects", [])
-                meta_caption = meta.get("caption", "")
-                meta_words = set(w for obj in meta_objs for w in obj.lower().split())
-                
-                for qi, (ocr_query, object_query, caption_query) in qi_to_queries.items():
-                    bonus = 0.0
-                    if ocr_query and USE_OCR:
-                        for q in ocr_query:
-                            # Pass pre-lowered strings to avoid redundant .lower() calls
-                            sim = get_ocr_similarity(q, meta_ocr_lower)
-                            bonus += 0.15 * math.exp(4 * (sim - 1.0))
-                    if object_query and USE_OD:
-                        for qw in object_query:
-                            if qw in meta_words:
-                                bonus += 0.05
-                    if meta_caption and USE_CAPTIONING:
-                        if use_st and sim_matrix is not None:
-                            q_idx = query_caption_to_idx.get(caption_query)
-                            m_idx = meta_caption_to_idx.get(meta_caption)
-                            if q_idx is not None and m_idx is not None:
-                                cap_sim = float(sim_matrix[q_idx, m_idx])
-                            else:
-                                cap_sim = 0.0
-                        else:
-                            cap_sim = get_caption_similarity(caption_query, meta_caption)
-                            
-                        if cap_sim > 0.4:  # Hạ nhẹ ngưỡng trùng lặp từ 0.5 xuống 0.4 để dễ ăn điểm hơn
-                            bonus += 0.3 * cap_sim  # Tăng trọng số từ 0.1 lên 0.3
-                    if bonus > 0:
-                        chunk_updates.append((qi, r, bonus))
-        return frames_processed, chunk_updates
+    import concurrent.futures
+    import multiprocessing
+    from tqdm import tqdm
 
     print("[retrieve] Computing metadata scores across all frames...", flush=True)
     CHUNK_SIZE = 500  # Giảm chunk size để progress bar mượt hơn
     chunks = [(s, min(s + CHUNK_SIZE, N)) for s in range(0, N, CHUNK_SIZE)]
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-        futures = [executor.submit(process_chunk, s, e) for s, e in chunks]
+    # Use ProcessPoolExecutor with fork context to bypass GIL completely
+    ctx = multiprocessing.get_context("fork")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=16, mp_context=ctx) as executor:
+        futures = [executor.submit(_worker_process_chunk, s, e) for s, e in chunks]
         with tqdm(total=N, desc="Metadata Scoring") as pbar:
             for future in concurrent.futures.as_completed(futures):
                 frames_processed, updates = future.result()
