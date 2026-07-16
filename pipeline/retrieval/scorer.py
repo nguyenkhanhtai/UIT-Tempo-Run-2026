@@ -146,27 +146,14 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata, return_co
     
     qi_to_queries = {}
     for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
-        task = tasks[ti]
-        
-        ocr_query = task.get("ocr", [])
-        if isinstance(ocr_query, str): ocr_query = [ocr_query]
-        
-        object_query = task.get("objects", [])
-        if isinstance(object_query, str): object_query = [object_query]
-        
-        # Determine caption
-        caption_query = ""
         if is_main:
-            caption_query = task.get("query", "")
-        else:
-            caption_query = ""
-            for sub in task.get("sub_queries", []):
-                if sub.get("sub_id") == sub_id:
-                    caption_query = sub.get("text", "")
-                    break
-                    
-        if ocr_query or object_query or caption_query:
-            qi_to_queries[qi] = (ocr_query, object_query, caption_query)
+            desc = tasks[ti]["description"]
+            ocr_q = extract_ocr_queries(desc) if USE_OCR else []
+            obj_q = extract_object_queries(desc) if USE_OD else []
+            caption_q = desc.lower() if USE_CAPTIONING else "" # Full query text for caption matching
+            
+            # Always track main queries because caption matching applies to all
+            qi_to_queries[qi] = (ocr_q, obj_q, caption_q)
             
     query_caption_to_idx = {}
     meta_caption_to_idx = {}
