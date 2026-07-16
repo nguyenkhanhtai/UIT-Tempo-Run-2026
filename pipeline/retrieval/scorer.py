@@ -21,24 +21,35 @@ def get_ocr_similarity(query, text):
     if query in text:
         return 1.0
         
-    query_words = query.split()
-    text_words = text.split()
-    n_q = len(query_words)
-    
-    if n_q == 0 or not text_words:
-        return 0.0
+    try:
+        from rapidfuzz import fuzz
+        # partial_ratio finds the optimal substring matching and returns 0-100
+        return fuzz.partial_ratio(query, text) / 100.0
+    except ImportError:
+        # Fallback if rapidfuzz somehow fails to load
+        query_words = query.split()
+        text_words = text.split()
+        n_q = len(query_words)
         
-    if len(text_words) <= n_q:
-        return difflib.SequenceMatcher(None, query, text).ratio()
-        
-    max_ratio = 0.0
-    for i in range(len(text_words) - n_q + 1):
-        window = " ".join(text_words[i:i+n_q])
-        ratio = difflib.SequenceMatcher(None, query, window).ratio()
-        if ratio > max_ratio:
-            max_ratio = ratio
+        if n_q == 0 or not text_words:
+            return 0.0
             
-    return max_ratio
+        if len(text_words) <= n_q:
+            return difflib.SequenceMatcher(None, " ".join(query_words), " ".join(text_words)).ratio()
+            
+        max_ratio = 0.0
+        matcher = difflib.SequenceMatcher(None, query)
+        
+        for i in range(len(text_words) - n_q + 1):
+            window = " ".join(text_words[i:i+n_q])
+            if window == query: return 1.0
+            matcher.set_seq2(window)
+            if matcher.real_quick_ratio() > max_ratio and matcher.quick_ratio() > max_ratio:
+                ratio = matcher.ratio()
+                if ratio > max_ratio:
+                    max_ratio = ratio
+                    if max_ratio > 0.95: return max_ratio
+        return max_ratio
 
 def get_caption_similarity(query, caption):
     if not query or not caption:

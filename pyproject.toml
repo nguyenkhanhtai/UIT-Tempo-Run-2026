@@ -26,6 +26,7 @@ dependencies = [
     "hf-transfer",
     "matplotlib",
     "seaborn",
+    "rapidfuzz",
 ]
 
 [[tool.uv.index]]
