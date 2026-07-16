@@ -57,23 +57,31 @@ def get_image_path_for_frame(vid, frame_ms, kf_dir):
         return str(img_path)
     return None
 
+import textwrap
+
 def create_max_score_figure(task_id, query_text, category_name, max_score, meta_text, img_path, out_path):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fig = plt.figure(figsize=(10, 8))
-    plt.text(0.5, 0.95, f"Task: {task_id}\nQuery: {query_text}", fontsize=14, ha='center', va='top', wrap=True)
+    
+    query_text_wrapped = textwrap.fill(f"Query: {query_text}", width=80)
+    fig.text(0.5, 0.95, f"Task: {task_id}\n{query_text_wrapped}", fontsize=14, ha='center', va='top')
+    
     if img_path and os.path.exists(img_path):
         try:
             img = Image.open(img_path)
-            ax = plt.axes([0.1, 0.25, 0.8, 0.6])
+            ax = fig.add_axes([0.1, 0.25, 0.8, 0.6])
             ax.imshow(img)
             ax.axis('off')
             ax.set_title(f"Max {category_name} Score: {max_score:.4f}", fontsize=12)
         except Exception:
-            plt.text(0.5, 0.5, "Image not found", fontsize=16, ha='center')
+            fig.text(0.5, 0.5, "Image not found", fontsize=16, ha='center')
     else:
-        plt.text(0.5, 0.5, f"Image path invalid: {img_path}", fontsize=16, ha='center')
+        fig.text(0.5, 0.5, f"Image path invalid: {img_path}", fontsize=16, ha='center')
         
-    plt.text(0.5, 0.05, f"Metadata:\n{meta_text}", fontsize=10, ha='center', va='bottom', wrap=True, bbox=dict(facecolor='white', alpha=0.8))
+    meta_text_wrapped = "\n".join([textwrap.fill(line, width=100) for line in meta_text.split("\n")])
+    fig.text(0.5, 0.20, f"Metadata:\n{meta_text_wrapped}", fontsize=10, ha='center', va='top', 
+             bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray', boxstyle='round,pad=0.5'))
+             
     plt.savefig(out_path, bbox_inches='tight', dpi=150)
     plt.close(fig)
 
