@@ -295,10 +295,8 @@ def main():
             figure_tasks.append((task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank))
 
     print(f"Rendering {len(figure_tasks)} top-score images using multiprocessing...")
-    ctx = concurrent.futures.ProcessPoolExecutor._mp_context
-    if ctx is None:
-        import multiprocessing
-        ctx = multiprocessing.get_context("fork")
+    import multiprocessing
+    ctx = multiprocessing.get_context("fork")
         
     with concurrent.futures.ProcessPoolExecutor(max_workers=16, mp_context=ctx) as executor:
         futures = [executor.submit(create_top_score_figure, *args) for args in figure_tasks]
