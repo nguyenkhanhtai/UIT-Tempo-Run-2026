@@ -1,14 +1,14 @@
 # TempoRun 2026 — CLIP I-frame Baseline
 
-A simple, reproducible baseline for the **TempoRun temporal video-retrieval** task.
+A simple, reproducible pipeline for the **TempoRun temporal video-retrieval** task.
 Given a natural-language description, return up to 10 ranked **frame** predictions
 `(video_id, frame_ms)`. A prediction is correct if your **submitted frame falls
 inside the correct clip's labeled interval** — see [Scoring](#scoring).
 
 - **Corpus:** 5006 short clips (≤180 s each; V3C-format
   `<coll>/videos/<id>/<id>.mp4`).
-- **Index built by this baseline:** ~223k I-frame embeddings (≈45 keyframes/clip).
-- **Best baseline:** PE-Core-bigG **0.387** vs ViT-B-32 **0.227** on public round — see [Results](#results).
+- **Index built by this pipeline:** ~223k I-frame embeddings (≈45 keyframes/clip).
+- **Best pipeline:** PE-Core-bigG **0.387** vs ViT-B-32 **0.227** on public round — see [Results](#results).
 
 ---
 

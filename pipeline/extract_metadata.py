@@ -76,7 +76,7 @@ def main():
 
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from baseline.models.factory import get_ocr_model, get_od_model, get_caption_model
+    from pipeline.models.factory import get_ocr_model, get_od_model, get_caption_model
 
     ocr = None
     od = None

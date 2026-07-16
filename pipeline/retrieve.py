@@ -11,7 +11,7 @@ Added features (Merged):
 - OCR Hard Filtering.
 - KMeans Clustering for Diversity.
 
-Refactored to use modular architecture under `baseline/retrieval/`.
+Refactored to use modular architecture under `pipeline/retrieval/`.
 """
 from __future__ import annotations
 import argparse, json

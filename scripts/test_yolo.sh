@@ -3,7 +3,7 @@
 # Có thể đổi ảnh trong test_images/yolo_test.png thành ảnh khác nếu muốn
 cd "$(dirname "$0")/.."
 mkdir -p logs
-uv run python baseline/utils/test.py \
+uv run python pipeline/utils/test.py \
     --task od \
     --engine yolo \
     --model yolo12m.pt \

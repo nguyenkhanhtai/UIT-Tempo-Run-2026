@@ -5,4 +5,4 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Running visualization script..."
-uv run python baseline/utils/visualize.py "$@"
+uv run python pipeline/utils/visualize.py "$@"

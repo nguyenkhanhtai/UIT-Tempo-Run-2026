@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 mkdir -p logs
 
 
-uv run python baseline/utils/test.py \
+uv run python pipeline/utils/test.py \
     --task ocr \
     --engine florence2 \
     --images "test_images/ocr_*.png" \
@@ -13,7 +13,7 @@ uv run python baseline/utils/test.py \
 rm -rf ~/.cache/huggingface/hub/*
 
 # Option 7: Florence-2-base
-uv run python baseline/utils/test.py \
+uv run python pipeline/utils/test.py \
     --task ocr \
     --engine florence2_base \
     --images "test_images/ocr_*.png" \
@@ -22,14 +22,14 @@ rm -rf ~/.cache/huggingface/hub/*
 
 
 # Option 9: EasyOCR
-uv run python baseline/utils/test.py \
+uv run python pipeline/utils/test.py \
     --task ocr \
     --engine easyocr \
     --images "test_images/ocr_*.png"
 rm -rf ~/.EasyOCR/
 
 # Option 10: RapidOCR
-uv run python baseline/utils/test.py \
+uv run python pipeline/utils/test.py \
     --task ocr \
     --engine rapidocr \
     --images "test_images/ocr_*.png"

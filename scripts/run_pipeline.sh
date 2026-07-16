@@ -91,7 +91,7 @@ echo "STAGE 1: Extract Keyframes (Cut frames from Video)"
 echo "=========================================================="
 # Run multiple processes (shards) in parallel to speed up extraction
 for i in $(seq 0 $((SHARDS-1))); do
-  uv run python baseline/extract_keyframes.py \
+  uv run python pipeline/extract_keyframes.py \
     --dataset-root $DATASET_ROOT/V3C1 \
     --dataset-root $DATASET_ROOT/V3C2 \
     --out $KF_DIR --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
@@ -114,7 +114,7 @@ for VLM in "${VLMS[@]}"; do
   # Run multiple embedding processes in parallel, distributing across GPUs
   for i in $(seq 0 $((SHARDS-1))); do
     GPU_ID=$((i % NUM_GPUS))
-    uv run python baseline/extract_embed.py \
+    uv run python pipeline/extract_embed.py \
       --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
       --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
       --shard-index $i --shard-count $SHARDS --batch-size $CLIP_BATCH_SIZE --limit $LIMIT_PER_SHARD &
@@ -139,7 +139,7 @@ if [ "$USE_OD" = "true" ]; then
   echo ">>> Extracting OD (Batch size: $OD_BATCH_SIZE)..."
   for i in $(seq 0 $((SHARDS-1))); do
     GPU_ID=$((i % NUM_GPUS))
-    uv run python baseline/extract_metadata.py \
+    uv run python pipeline/extract_metadata.py \
       --task od \
       --keyframes "$KF_DIR" \
       --out "$INDEX_DIR" \
@@ -156,7 +156,7 @@ if [ "$USE_OCR" = "true" ]; then
   echo ">>> Extracting OCR (Batch size: $OCR_BATCH_SIZE)..."
   for i in $(seq 0 $((SHARDS-1))); do
     GPU_ID=$((i % NUM_GPUS))
-    uv run python baseline/extract_metadata.py \
+    uv run python pipeline/extract_metadata.py \
       --task ocr \
       --keyframes "$KF_DIR" \
       --out "$INDEX_DIR" \
@@ -173,7 +173,7 @@ if [ "$USE_CAPTIONING" = "true" ]; then
   echo ">>> Extracting Captions (Batch size: $OD_BATCH_SIZE)..."
   for i in $(seq 0 $((SHARDS-1))); do
     GPU_ID=$((i % NUM_GPUS))
-    uv run python baseline/extract_metadata.py \
+    uv run python pipeline/extract_metadata.py \
       --task caption \
       --keyframes "$KF_DIR" \
       --out "$INDEX_DIR" \
@@ -207,7 +207,7 @@ if [ "$USE_OD" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-od"; fi
 if [ "$USE_CAPTIONING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-captioning"; fi
 if [ "$USE_CLUSTERING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-clustering"; fi
 
-uv run python baseline/retrieve.py \
+uv run python pipeline/retrieve.py \
   --shards $INDEX_DIR/shards \
   --metadata $INDEX_DIR/metadata \
   --tasks $TASKS_FILE \

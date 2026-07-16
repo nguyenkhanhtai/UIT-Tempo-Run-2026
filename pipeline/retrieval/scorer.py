@@ -50,6 +50,7 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     
     T_all = len(task_mapping)
     N = len(vids)
+    print(N)
     B = np.zeros((T_all, N), dtype=np.float32)
     
     t0 = time.time()
