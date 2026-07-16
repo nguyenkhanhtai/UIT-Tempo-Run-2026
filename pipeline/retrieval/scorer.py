@@ -21,16 +21,23 @@ def get_ocr_similarity(query, text):
     if query in text:
         return 1.0
         
-    n = len(query)
-    if len(text) <= n:
+    query_words = query.split()
+    text_words = text.split()
+    n_q = len(query_words)
+    
+    if n_q == 0 or not text_words:
+        return 0.0
+        
+    if len(text_words) <= n_q:
         return difflib.SequenceMatcher(None, query, text).ratio()
         
     max_ratio = 0.0
-    for i in range(len(text) - n + 1):
-        window = text[i:i+n]
+    for i in range(len(text_words) - n_q + 1):
+        window = " ".join(text_words[i:i+n_q])
         ratio = difflib.SequenceMatcher(None, query, window).ratio()
         if ratio > max_ratio:
             max_ratio = ratio
+            
     return max_ratio
 
 def get_caption_similarity(query, caption):
