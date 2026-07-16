@@ -231,6 +231,61 @@ def main():
                 out_img = os.path.join(cat_dir, f"top_{rank}.png")
                 create_top_score_figure(task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank)
 
+    # === Global Top 10 across all tasks ===
+    print("Generating Global Top 10 figures across all tasks...")
+    global_dir = "figures/analysis/GLOBAL_TOP"
+    os.makedirs(global_dir, exist_ok=True)
+    
+    global_score_data = {
+        "Total_Score": final_score_unsorted,
+        "CLIP_Visual": clip_score,
+        "OCR": observed.get('ocr_bonus', np.zeros_like(final_score_unsorted)),
+        "OD": observed.get('od_bonus', np.zeros_like(final_score_unsorted)),
+        "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))
+    }
+    
+    for cat_name, data in global_score_data.items():
+        cat_dir = os.path.join(global_dir, cat_name)
+        os.makedirs(cat_dir, exist_ok=True)
+        
+        # Flatten the matrix to find global top 10
+        # data is shape [T_all, N]
+        flat_data = data.flatten()
+        top10_flat_idx = np.argsort(flat_data)[-10:][::-1]
+        
+        for rank, flat_idx in enumerate(top10_flat_idx, 1):
+            qi, max_idx = np.unravel_index(flat_idx, data.shape)
+            max_val = data[qi, max_idx]
+            
+            ti, is_main, sub_id = task_mapping[qi]
+            task = tasks_parsed[ti]
+            task_id = task.get("task_id", f"T_unknown_{ti}")
+            query_text = all_queries[qi]
+            
+            vid = str(first_vids[max_idx])
+            ts_ms = int(first_ts[max_idx])
+            
+            meta_str = f"Task: {task_id} | Video ID: {vid}, Frame MS: {ts_ms}\n"
+            
+            if vid in first_metadata and ts_ms in first_metadata[vid]:
+                meta = first_metadata[vid][ts_ms]
+                if cat_name == "OCR":
+                    meta_str += f"OCR: {meta.get('ocr', '')}"
+                elif cat_name == "OD":
+                    meta_str += f"OD: {', '.join(meta.get('objects', []))}"
+                elif cat_name == "Captioning":
+                    meta_str += f"Caption: {meta.get('caption', '')}"
+                else:
+                    meta_str += f"OCR: {meta.get('ocr', '')}\n"
+                    meta_str += f"OD: {', '.join(meta.get('objects', []))}\n"
+                    meta_str += f"Caption: {meta.get('caption', '')}"
+            else:
+                meta_str += "No metadata found."
+                
+            img_path = get_image_path_for_frame(vid, ts_ms, args.keyframes)
+            out_img = os.path.join(cat_dir, f"top_{rank}.png")
+            create_top_score_figure(task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank)
+
     print("Analysis complete. Check figures/analysis/ directory.")
 
 if __name__ == "__main__":
