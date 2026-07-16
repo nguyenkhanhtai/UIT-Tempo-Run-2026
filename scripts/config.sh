@@ -3,6 +3,9 @@
 # Move to project root directory to ensure paths are correct
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# Catch Ctrl+C and kill background jobs to prevent zombie processes
+trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
+
 # Directory paths
 export DATASET_ROOT="dataset/Video_V3C"
 export KF_DIR="keyframes"
