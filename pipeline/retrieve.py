@@ -44,6 +44,7 @@ def main():
     
     args = p.parse_args()
 
+def run_retrieval(args):
     tasks = [json.loads(l) for l in open(args.tasks)]
     print(f"[tasks] {len(tasks)}", flush=True)
 
@@ -126,6 +127,30 @@ def main():
     sub = {"predictions": preds}
     json.dump(sub, open(args.out, "w"))
     print(f"[done] wrote {args.out} ({len(preds)} tasks)", flush=True)
+
+    # Return data for decorators/analysis if needed
+    return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--shards", required=True)
+    p.add_argument("--metadata", default=None, help="dir containing .jsonl metadata")
+    p.add_argument("--tasks", required=True, help="a round's task file, e.g. public_round_tasks.jsonl")
+    p.add_argument("--out", required=True, help="submission.json path")
+    p.add_argument("--device", default="cuda:0")
+    p.add_argument("--vlms", nargs="+", required=True, help="List of model,pretrained pairs e.g. ViT-B-32,laion2b_s34b_b79k")
+    p.add_argument("--precision", default=None)
+    p.add_argument("--top-videos", type=int, default=10)
+    p.add_argument("--cand-keyframes", type=int, default=2000)
+    
+    # Toggles for metadata scoring and clustering
+    p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
+    p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
+    p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
+    p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
+    
+    args = p.parse_args()
+    run_retrieval(args)
 
 if __name__ == "__main__":
     main()

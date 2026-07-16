@@ -98,9 +98,10 @@ def main():
         
         # 3. Download and Extract artifacts.zip
         artifacts_source = "drive:AI Tempo Run/artifacts.zip"
-        artifacts_dest = os.path.join(artifacts_dir, "artifacts.zip")
+        root_dir = os.path.abspath(os.path.join(script_dir, '..'))
+        artifacts_dest = os.path.join(root_dir, "artifacts.zip")
         if download_with_retry(artifacts_source, artifacts_dest, "artifacts.zip", conf_path):
-            extract_and_cleanup_zip(artifacts_dest, artifacts_dir, "artifacts.zip")
+            extract_and_cleanup_zip(artifacts_dest, root_dir, "artifacts.zip")
 
         # 4. Download and Extract Video V3C.zip
         zip_source = "drive:AI Tempo Run/V3C.zip"

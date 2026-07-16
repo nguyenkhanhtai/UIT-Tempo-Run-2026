@@ -24,6 +24,8 @@ dependencies = [
     "sentence-transformers",
     "rapidocr-onnxruntime",
     "hf-transfer",
+    "matplotlib",
+    "seaborn",
 ]
 
 [[tool.uv.index]]
