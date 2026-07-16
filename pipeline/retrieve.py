@@ -40,6 +40,7 @@ def main():
     p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
     p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
     p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
+    p.add_argument("--caption-scoring-method", default="embedding", choices=["embedding", "ngram"], help="Caption scoring method")
     p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
     
     args = p.parse_args()
@@ -54,6 +55,7 @@ def run_retrieval(args):
     scorer.USE_OCR = args.use_ocr
     scorer.USE_OD = args.use_od
     scorer.USE_CAPTIONING = args.use_captioning
+    scorer.CAPTION_SCORING_METHOD = getattr(args, "caption_scoring_method", "embedding")
     postprocess.USE_CLUSTERING = args.use_clustering
 
     # 3. Parse Queries & Encode
@@ -89,8 +91,8 @@ def run_retrieval(args):
             if not np.array_equal(first_vids, vids) or not np.array_equal(first_ts, ts):
                 raise ValueError(f"Shards for {vlm_str} do not match the keyframe alignment of the first model!")
                 
-        # 2. Temporal Smoothing
-        emb_smoothed = smooth_features(emb, vids)
+        # 2. No Temporal Smoothing (Basic Mode)
+        emb_smoothed = emb
         all_models_idx.append(emb_smoothed)
         
         clip = ClipModel(model_name, pretrained, device=args.device, precision=args.precision)
@@ -147,6 +149,7 @@ def main():
     p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
     p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
     p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
+    p.add_argument("--caption-scoring-method", default="embedding", choices=["embedding", "ngram"], help="Caption scoring method")
     p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
     
     args = p.parse_args()

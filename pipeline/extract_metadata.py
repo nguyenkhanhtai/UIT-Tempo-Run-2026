@@ -118,12 +118,11 @@ def main():
             pending_results[vid]["cap"].append(cap_res[i])
             frames_processed[vid] += 1
             
-            # If video is fully processed, write to disk
             if frames_processed[vid] == frames_expected[vid]:
                 try:
                     out_jsonl = meta_dir / f"{vid}.jsonl"
                     log_lines = []
-                    with open(out_jsonl, 'w', encoding='utf-8') as f:
+                    with open(out_jsonl, 'a', encoding='utf-8') as f:
                         for j in range(frames_expected[vid]):
                             t_ms = pending_results[vid]["ts"][j]
                             data = {"ts_ms": t_ms, "shard_index": args.shard_index}
@@ -186,20 +185,43 @@ def main():
     for vdir in mine:
         vid = vdir.name
         out_jsonl = meta_dir / f"{vid}.jsonl"
+        
+        existing_ts = set()
         if out_jsonl.exists():
-            done += 1
-            continue
+            with open(out_jsonl, 'r') as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                        has_ocr = "ocr" in d
+                        has_od = "objects" in d
+                        has_cap = "caption" in d
+                        if args.task == "ocr" and has_ocr: existing_ts.add(d["ts_ms"])
+                        elif args.task == "od" and has_od: existing_ts.add(d["ts_ms"])
+                        elif args.task == "caption" and has_cap: existing_ts.add(d["ts_ms"])
+                        elif args.task == "all" and has_ocr and has_od and has_cap: existing_ts.add(d["ts_ms"])
+                    except: pass
             
         try:
             imgs, ts = load_frames(vdir)
             if not imgs:
                 continue
                 
-            nframes += len(imgs)
-            frames_expected[vid] = len(imgs)
-            
+            missing_imgs = []
+            missing_ts = []
             for i in range(len(imgs)):
-                global_batch.append((vid, ts[i], imgs[i]))
+                if ts[i] not in existing_ts:
+                    missing_imgs.append(imgs[i])
+                    missing_ts.append(ts[i])
+                    
+            if not missing_imgs:
+                done += 1
+                continue
+                
+            nframes += len(missing_imgs)
+            frames_expected[vid] = len(missing_imgs)
+            
+            for i in range(len(missing_imgs)):
+                global_batch.append((vid, missing_ts[i], missing_imgs[i]))
                 if len(global_batch) >= args.batch_size:
                     process_global_batch(global_batch)
                     global_batch = []

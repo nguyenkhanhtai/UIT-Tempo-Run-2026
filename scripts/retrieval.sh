@@ -17,7 +17,12 @@ OUT_FILE="${SUB_DIR}/submission.json"
 RETRIEVE_ARGS=""
 if [ "$USE_OCR" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-ocr"; fi
 if [ "$USE_OD" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-od"; fi
-if [ "$USE_CAPTIONING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-captioning"; fi
+if [ "$USE_CAPTIONING" = "true" ]; then 
+    RETRIEVE_ARGS="$RETRIEVE_ARGS --use-captioning"
+    if [ -n "$CAPTION_SCORING_METHOD" ]; then
+        RETRIEVE_ARGS="$RETRIEVE_ARGS --caption-scoring-method $CAPTION_SCORING_METHOD"
+    fi
+fi
 if [ "$USE_CLUSTERING" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-clustering"; fi
 
 uv run python pipeline/retrieve.py \

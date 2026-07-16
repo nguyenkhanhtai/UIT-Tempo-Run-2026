@@ -69,8 +69,8 @@ def extract_keyframes(mp4: str, out_dir: str):
     """One ffmpeg pass. Writes k_*.jpg into out_dir; returns (jpg_paths, ts_ms) aligned."""
     os.makedirs(out_dir, exist_ok=True)
     pat = os.path.join(out_dir, "k_%05d.jpg")
-    cmd = [FFMPEG, "-hide_banner", "-loglevel", "info", "-skip_frame", "nokey",
-           "-i", mp4, "-vsync", "0", "-vf", "showinfo", "-q:v", "3", pat]
+    cmd = [FFMPEG, "-hide_banner", "-loglevel", "info",
+           "-i", mp4, "-vf", "fps=1,showinfo", "-q:v", "3", pat]
     proc = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
     pts = [float(x) for x in PTS_RE.findall(proc.stderr.decode("utf-8", "ignore"))]
     files = sorted(glob.glob(os.path.join(out_dir, "k_*.jpg")))

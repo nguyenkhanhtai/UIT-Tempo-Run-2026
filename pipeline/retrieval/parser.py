@@ -10,23 +10,10 @@ def parse_queries(tasks):
     
     for ti, task in enumerate(tasks):
         desc = task["description"]
-        # Split by punctuation (. ! ?)
-        sentences = [s.strip() for s in re.split(r'[.!?]', desc) if s.strip()]
         
-        if not sentences:
-            sentences = [desc]
-            
-        main_query = sentences[0]
-        
+        main_query = desc.strip()
         all_queries.append(main_query)
         task_mapping.append((ti, True, 0)) # Main query
-        
-        # Subsequent sentences are sub-queries
-        sub_idx = 1
-        for sub_q in sentences[1:]:
-            all_queries.append(sub_q)
-            task_mapping.append((ti, False, sub_idx))
-            sub_idx += 1
             
     return all_queries, task_mapping
 

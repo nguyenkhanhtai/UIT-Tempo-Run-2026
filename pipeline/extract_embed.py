@@ -109,8 +109,16 @@ def main():
             if frames_processed[vid] == frames_expected[vid]:
                 try:
                     out_npz = shard_dir / f"{vid}.npz"
-                    final_emb = np.stack(pending_results[vid]["emb"], axis=0)
-                    final_ts = np.array(pending_results[vid]["ts"], dtype=np.int32)
+                    if "original_emb" in pending_results[vid]:
+                        final_emb = pending_results[vid]["original_emb"]
+                        new_emb = np.stack(pending_results[vid]["emb"], axis=0)
+                        missing_idx = pending_results[vid]["missing_indices"]
+                        final_emb[missing_idx] = new_emb
+                        final_ts = np.array(pending_results[vid]["original_ts"], dtype=np.int32)
+                    else:
+                        final_emb = np.stack(pending_results[vid]["emb"], axis=0)
+                        final_ts = np.array(pending_results[vid]["ts"], dtype=np.int32)
+                        
                     np.savez(out_npz, emb=final_emb.astype(np.float16), ts_ms=final_ts)
                     
                     done += 1
@@ -141,17 +149,37 @@ def main():
     for vdir in mine:
         vid = vdir.name
         out_npz = shard_dir / f"{vid}.npz"
+        
+        missing_indices = []
+        existing_emb = None
+        existing_ts = None
+        
         if out_npz.exists():
-            done += 1
-            continue
+            data = np.load(out_npz)
+            existing_emb = data["emb"]
+            existing_ts = data["ts_ms"]
+            # Find rows where all elements are exactly 0.0
+            missing_indices = np.where(np.all(existing_emb == 0.0, axis=1))[0].tolist()
+            if not missing_indices:
+                done += 1
+                continue
             
         try:
             imgs, ts = load_frames(vdir)
             if not imgs:
                 continue
                 
+            if missing_indices:
+                imgs = [imgs[i] for i in missing_indices]
+                ts = [ts[i] for i in missing_indices]
+                frames_expected[vid] = len(missing_indices)
+                pending_results[vid]["original_emb"] = existing_emb
+                pending_results[vid]["missing_indices"] = missing_indices
+                pending_results[vid]["original_ts"] = existing_ts
+            else:
+                frames_expected[vid] = len(imgs)
+                
             nframes += len(imgs)
-            frames_expected[vid] = len(imgs)
             
             for i in range(len(imgs)):
                 global_batch.append((vid, ts[i], imgs[i]))
