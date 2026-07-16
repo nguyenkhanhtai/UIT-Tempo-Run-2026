@@ -20,18 +20,18 @@ export NUM_GPUS
 
 # --- CÁC MÔ HÌNH VLM GỢI Ý ĐỂ ENSEMBLE (Mở comment để sử dụng) ---
 export VLMS=(
-  # "PE-Core-bigG-14-448,meta"
+  "PE-Core-bigG-14-448,meta"
   
   # 1. Dòng OpenCLIP Tiêu chuẩn (Nhẹ, cân bằng)
-  "ViT-B-32,laion2b_s34b_b79k"
-  "ViT-B-16,laion2b_s34b_b88k"
+  # "ViT-B-32,laion2b_s34b_b79k"
+  # "ViT-B-16,laion2b_s34b_b88k"
   
   # 2. Dòng OpenCLIP Lớn (Nặng hơn, cực kỳ chính xác cho ngữ nghĩa)
   # "ViT-L-14,laion2b_s32b_b82k"
   # "ViT-H-14,laion2b_s32b_b79k"
   
   # 3. Dòng SigLIP (Kiến trúc Sigmoid Loss, rất nhạy bén với Tiếng Anh/Văn bản)
-  "ViT-B-16-SigLIP,webli"
+  # "ViT-B-16-SigLIP,webli"
   # "ViT-SO400M-14-SigLIP,webli"
   
   # 4. Dòng EVA-CLIP (Hiệu năng cực tốt trong các cuộc thi truy xuất)
