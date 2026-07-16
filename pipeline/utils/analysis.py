@@ -17,10 +17,18 @@ observed = {}
 
 orig_precompute = scorer.precompute_metadata_bonus
 def observed_precompute(tasks, task_mapping, vids, ts, metadata):
-    print("[Observer] Intercepting precompute_metadata_bonus to capture B...")
-    B = orig_precompute(tasks, task_mapping, vids, ts, metadata)
-    observed['B_total'] = B.copy()
-    return B
+    print("[Observer] Intercepting precompute_metadata_bonus to isolate components in a SINGLE PASS...")
+    
+    # Run once with all components enabled
+    B_total, B_ocr, B_od, B_cap = orig_precompute(tasks, task_mapping, vids, ts, metadata, return_components=True)
+    
+    # Store the individual components
+    observed['ocr_bonus'] = B_ocr
+    observed['od_bonus'] = B_od
+    observed['caption_bonus'] = B_cap
+    observed['B_total'] = B_total
+    
+    return B_total
 
 # 2. Decorate compute_similarity to observe the final scores for ALL frames
 orig_compute = scorer.compute_similarity
@@ -158,14 +166,16 @@ def main():
         task_dir = os.path.join("figures/analysis", task_id)
         os.makedirs(task_dir, exist_ok=True)
         
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
         axes = axes.flatten()
         fig.suptitle(f"Score Distributions for Task {task_id}", fontsize=16)
         
         score_data = {
             "Total_Score": final_score_unsorted[qi],
             "CLIP_Visual": clip_score[qi],
-            "Metadata_Bonus": observed['B_total'][qi]
+            "OCR": observed.get('ocr_bonus', np.zeros_like(final_score_unsorted))[qi],
+            "OD": observed.get('od_bonus', np.zeros_like(final_score_unsorted))[qi],
+            "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))[qi]
         }
         
         for idx, (name, data) in enumerate(score_data.items()):
@@ -174,6 +184,8 @@ def main():
             ax.set_title(f"{name}\nMean: {np.mean(data):.4f}, Var: {np.var(data):.4f}")
             ax.set_xlabel("Score")
             ax.set_ylabel("Count")
+            
+        axes[-1].axis('off')
         plt.tight_layout()
         plt.savefig(os.path.join(task_dir, "distribution.png"))
         plt.close(fig)

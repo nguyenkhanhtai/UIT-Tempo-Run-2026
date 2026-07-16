@@ -38,15 +38,17 @@ def _worker_process_chunk(start_r, end_r):
             meta_words = set(w for obj in meta_objs for w in obj.lower().split())
             
             for qi, (ocr_query, object_query, caption_query) in _G_qi_to_queries.items():
-                bonus = 0.0
+                b_ocr = 0.0
+                b_od = 0.0
+                b_cap = 0.0
                 if ocr_query and USE_OCR:
                     for q in ocr_query:
                         sim = get_ocr_similarity(q, meta_ocr_lower)
-                        bonus += 0.15 * math.exp(4 * (sim - 1.0))
+                        b_ocr += 0.15 * math.exp(4 * (sim - 1.0))
                 if object_query and USE_OD:
                     for qw in object_query:
                         if qw in meta_words:
-                            bonus += 0.05
+                            b_od += 0.05
                 if meta_caption and USE_CAPTIONING:
                     if _G_use_st and _G_sim_matrix is not None:
                         q_idx = _G_query_caption_to_idx.get(caption_query)
@@ -59,9 +61,11 @@ def _worker_process_chunk(start_r, end_r):
                         cap_sim = get_caption_similarity(caption_query, meta_caption)
                         
                     if cap_sim > 0.4:
-                        bonus += 0.3 * cap_sim
+                        b_cap += 0.3 * cap_sim
+                
+                bonus = b_ocr + b_od + b_cap
                 if bonus > 0:
-                    chunk_updates.append((qi, r, bonus))
+                    chunk_updates.append((qi, r, bonus, b_ocr, b_od, b_cap))
     return frames_processed, chunk_updates
 
 def get_ocr_similarity(query, text):
@@ -138,18 +142,28 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     
     qi_to_queries = {}
     for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
-        if is_main:
-            desc = tasks[ti]["description"]
-            ocr_q = extract_ocr_queries(desc) if USE_OCR else []
-            obj_q = extract_object_queries(desc) if USE_OD else []
-            caption_q = desc.lower() if USE_CAPTIONING else "" # Full query text for caption matching
-            
-            # Always track main queries because caption matching applies to all
-            qi_to_queries[qi] = (ocr_q, obj_q, caption_q)
-                
-    if not qi_to_queries:
-        return B
+        task = tasks[ti]
         
+        ocr_query = task.get("ocr", [])
+        if isinstance(ocr_query, str): ocr_query = [ocr_query]
+        
+        object_query = task.get("objects", [])
+        if isinstance(object_query, str): object_query = [object_query]
+        
+        # Determine caption
+        caption_query = ""
+        if is_main:
+            caption_query = task.get("query", "")
+        else:
+            caption_query = ""
+            for sub in task.get("sub_queries", []):
+                if sub.get("sub_id") == sub_id:
+                    caption_query = sub.get("text", "")
+                    break
+                    
+        if ocr_query or object_query or caption_query:
+            qi_to_queries[qi] = (ocr_query, object_query, caption_query)
+            
     query_caption_to_idx = {}
     meta_caption_to_idx = {}
     sim_matrix = None
@@ -200,18 +214,21 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
     from tqdm import tqdm
 
     print("[retrieve] Computing metadata scores across all frames...", flush=True)
-    CHUNK_SIZE = 500  # Giảm chunk size để progress bar mượt hơn
+    CHUNK_SIZE = 500
     chunks = [(s, min(s + CHUNK_SIZE, N)) for s in range(0, N, CHUNK_SIZE)]
     
-    # Use ProcessPoolExecutor with fork context to bypass GIL completely
     ctx = multiprocessing.get_context("fork")
     with concurrent.futures.ProcessPoolExecutor(max_workers=16, mp_context=ctx) as executor:
         futures = [executor.submit(_worker_process_chunk, s, e) for s, e in chunks]
         with tqdm(total=N, desc="Metadata Scoring") as pbar:
             for future in concurrent.futures.as_completed(futures):
                 frames_processed, updates = future.result()
-                for qi, r, bonus in updates:
+                for qi, r, bonus, b_ocr, b_od, b_cap in updates:
                     B[qi, r] = bonus
+                    if return_components:
+                        B_ocr[qi, r] = b_ocr
+                        B_od[qi, r] = b_od
+                        B_cap[qi, r] = b_cap
                 pbar.update(frames_processed)
     
     if use_st:
@@ -220,6 +237,8 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
                     
     print(f"[retrieve] Precomputed metadata bonus for {N} frames in {time.time()-t0:.1f}s", flush=True)
+    if return_components:
+        return B, B_ocr, B_od, B_cap
     return B
 
 def compute_similarity(Q_list, idx_list, B, T_all, N, K, dev):
