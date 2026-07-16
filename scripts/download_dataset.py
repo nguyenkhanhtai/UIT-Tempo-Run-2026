@@ -10,7 +10,7 @@ def run_rclone_copyto(source, dest):
     """Run rclone copyto to download a file and optionally rename it"""
     cmd = [
         "rclone", "copyto", source, dest,
-        "--progress", "--drive-shared-with-me"
+        "--progress"
     ]
     
     # Create a local rclone.conf file dynamically
@@ -20,10 +20,11 @@ def run_rclone_copyto(source, dest):
     
     if os.path.exists(token_path):
         with open(token_path, 'r') as f:
-            token_json = f.read().strip()
+            token_dict = json.load(f)
+            token_string = json.dumps(token_dict)
             
         with open(conf_path, 'w') as f:
-            f.write(f"[drive]\ntype = drive\ntoken = {token_json}\n")
+            f.write(f"[drive]\ntype = drive\ntoken = {token_string}\n")
             
         # Add --config flag to use the generated local conf
         cmd.extend(["--config", conf_path])
@@ -98,8 +99,10 @@ def main():
     print("\n" + "="*40)
     print("Downloading artifacts.zip using rclone (supports automatic resume)...")
     
+    artifacts_dir = os.path.abspath(os.path.join(script_dir, '..', 'artifacts'))
+    os.makedirs(artifacts_dir, exist_ok=True)
     artifacts_source = "drive:AI Tempo Run/artifacts.zip"
-    artifacts_output = os.path.join(dataset_dir, "artifacts.zip")
+    artifacts_output = os.path.join(artifacts_dir, "artifacts.zip")
     
     for attempt in range(1, max_retries + 1):
         print(f"Starting download with rclone (Attempt {attempt})...")
@@ -119,10 +122,8 @@ def main():
     print("\n" + "="*40)
     if os.path.exists(artifacts_output):
         print("Extracting artifacts.zip...")
-        artifacts_extract_dir = os.path.join(dataset_dir, "artifacts")
-        os.makedirs(artifacts_extract_dir, exist_ok=True)
         with zipfile.ZipFile(artifacts_output, 'r') as zip_ref:
-            zip_ref.extractall(artifacts_extract_dir)
+            zip_ref.extractall(artifacts_dir)
         print("Extraction completed!")
         
         # Delete zip file to save space
