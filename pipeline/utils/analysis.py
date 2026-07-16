@@ -156,8 +156,11 @@ def main():
     
     os.makedirs("figures/analysis", exist_ok=True)
     
-    for qi, (ti, is_main, sub_id) in enumerate(task_mapping):
-        if not is_main: continue 
+    from tqdm import tqdm
+    
+    main_tasks = [(qi, info) for qi, info in enumerate(task_mapping) if info[1]]
+    
+    for qi, (ti, is_main, sub_id) in tqdm(main_tasks, desc="Generating per-task figures"):
         
         task = tasks_parsed[ti]
         task_id = task.get("task_id", f"T_unknown_{ti}")
@@ -244,7 +247,7 @@ def main():
         "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))
     }
     
-    for cat_name, data in global_score_data.items():
+    for cat_name, data in tqdm(global_score_data.items(), desc="Generating Global Top 10"):
         cat_dir = os.path.join(global_dir, cat_name)
         os.makedirs(cat_dir, exist_ok=True)
         
