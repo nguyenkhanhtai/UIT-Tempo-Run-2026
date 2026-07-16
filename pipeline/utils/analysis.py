@@ -4,6 +4,8 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import json
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
@@ -157,10 +159,13 @@ def main():
     os.makedirs("figures/analysis", exist_ok=True)
     
     from tqdm import tqdm
+    import concurrent.futures
+    
+    figure_tasks = []
     
     main_tasks = [(qi, info) for qi, info in enumerate(task_mapping) if info[1]]
     
-    for qi, (ti, is_main, sub_id) in tqdm(main_tasks, desc="Generating per-task figures"):
+    for qi, (ti, is_main, sub_id) in tqdm(main_tasks, desc="Generating per-task distributions & gathering tasks"):
         
         task = tasks_parsed[ti]
         task_id = task.get("task_id", f"T_unknown_{ti}")
@@ -232,7 +237,7 @@ def main():
                     
                 img_path = get_image_path_for_frame(vid, ts_ms, args.keyframes)
                 out_img = os.path.join(cat_dir, f"top_{rank}.png")
-                create_top_score_figure(task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank)
+                figure_tasks.append((task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank))
 
     # === Global Top 10 across all tasks ===
     print("Generating Global Top 10 figures across all tasks...")
@@ -247,7 +252,7 @@ def main():
         "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))
     }
     
-    for cat_name, data in tqdm(global_score_data.items(), desc="Generating Global Top 10"):
+    for cat_name, data in global_score_data.items():
         cat_dir = os.path.join(global_dir, cat_name)
         os.makedirs(cat_dir, exist_ok=True)
         
@@ -287,7 +292,18 @@ def main():
                 
             img_path = get_image_path_for_frame(vid, ts_ms, args.keyframes)
             out_img = os.path.join(cat_dir, f"top_{rank}.png")
-            create_top_score_figure(task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank)
+            figure_tasks.append((task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank))
+
+    print(f"Rendering {len(figure_tasks)} top-score images using multiprocessing...")
+    ctx = concurrent.futures.ProcessPoolExecutor._mp_context
+    if ctx is None:
+        import multiprocessing
+        ctx = multiprocessing.get_context("fork")
+        
+    with concurrent.futures.ProcessPoolExecutor(max_workers=16, mp_context=ctx) as executor:
+        futures = [executor.submit(create_top_score_figure, *args) for args in figure_tasks]
+        for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Rendering Images"):
+            pass
 
     print("Analysis complete. Check figures/analysis/ directory.")
 
