@@ -23,7 +23,7 @@ export NUM_GPUS
 
 # --- CÁC MÔ HÌNH VLM GỢI Ý ĐỂ ENSEMBLE (Mở comment để sử dụng) ---
 export VLMS=(
-  "PE-Core-bigG-14-448,meta"
+  # "PE-Core-bigG-14-448,meta"
   
   # 1. Dòng OpenCLIP Tiêu chuẩn (Nhẹ, cân bằng)
   # "ViT-B-32,laion2b_s34b_b79k"
@@ -42,7 +42,7 @@ export VLMS=(
   # "EVA02-L-14,merged2b_s4b_b131k"
   
   # 5. Dòng Video VLM (X-CLIP)
-  # "microsoft/xclip-base-patch32,none"
+  "microsoft/xclip-base-patch32,none"
   # "microsoft/xclip-large-patch14,none"
 )
 export PRECISION="fp16"
