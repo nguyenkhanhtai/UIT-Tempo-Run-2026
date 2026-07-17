@@ -83,6 +83,10 @@ export USE_OD="true"
 export USE_CAPTIONING="true"
 export USE_CLUSTERING="true"
 
+# Temporal Smoothing Settings
+export SMOOTHING_WINDOW=3
+export SMOOTHING_SIGMA=1.0
+
 # Batching and sharding parameters
 export SHARDS=4
 export CLIP_BATCH_SIZE=1024
