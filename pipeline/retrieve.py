@@ -22,7 +22,7 @@ from retrieval.temporal import smooth_features
 from retrieval.parser import parse_queries
 from retrieval.scorer import compute_similarity, aggregate_scores, precompute_metadata_bonus
 from retrieval.postprocess import apply_clustering
-from models.embedding.clip_model import ClipModel
+from models.factory import get_embedding_model
 
 
 
@@ -84,7 +84,7 @@ def run_retrieval(args):
         emb_smoothed = smooth_features(emb, vids, smoothing_window=args.smoothing_window, sigma=args.smoothing_sigma)
         all_models_idx.append(emb_smoothed)
         
-        clip = ClipModel(model_name, pretrained, device=args.device, precision=args.precision)
+        clip = get_embedding_model(model_name, pretrained, device=args.device, precision=args.precision)
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
         

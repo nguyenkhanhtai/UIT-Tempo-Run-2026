@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 class BaseEmbedding(ABC):
+    is_video_model: bool = False
+    
     @abstractmethod
     def encode_images(self, pil_images: list, batch_size: int = 64) -> np.ndarray:
         pass

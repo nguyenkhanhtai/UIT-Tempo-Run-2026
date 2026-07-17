@@ -43,3 +43,13 @@ def get_caption_model(engine: str, **kwargs):
         return BlipCaptionModel(**kwargs)
     else:
         raise ValueError(f"Unknown Caption engine: {engine}. Available: florence2, florence2_base, blip")
+
+def get_embedding_model(model_name: str, pretrained: str = None, **kwargs):
+    model_name_lower = model_name.lower()
+    if 'xclip' in model_name_lower or 'x-clip' in model_name_lower:
+        from .embedding.xclip_model import XClipModel
+        return XClipModel(model_name=model_name, pretrained=pretrained, **kwargs)
+    else:
+        # Default to standard CLIP via open_clip
+        from .embedding.clip_model import ClipModel
+        return ClipModel(model_name=model_name, pretrained=pretrained, **kwargs)

@@ -65,12 +65,18 @@ def list_from_file(path):
     return vids
 
 
-def extract_keyframes(mp4: str, out_dir: str):
+def extract_keyframes(mp4: str, out_dir: str, fps: float = 0):
     """One ffmpeg pass. Writes k_*.jpg into out_dir; returns (jpg_paths, ts_ms) aligned."""
     os.makedirs(out_dir, exist_ok=True)
     pat = os.path.join(out_dir, "k_%05d.jpg")
-    cmd = [FFMPEG, "-hide_banner", "-loglevel", "info", "-skip_frame", "nokey",
-           "-i", mp4, "-vsync", "0", "-vf", "showinfo", "-q:v", "3", pat]
+    if fps > 0:
+        # Uniform sampling for Video VLMs (e.g. X-CLIP)
+        cmd = [FFMPEG, "-hide_banner", "-loglevel", "info",
+               "-i", mp4, "-vsync", "0", "-vf", f"fps={fps},showinfo", "-q:v", "3", pat]
+    else:
+        # Default I-frame extraction for Image VLMs
+        cmd = [FFMPEG, "-hide_banner", "-loglevel", "info", "-skip_frame", "nokey",
+               "-i", mp4, "-vsync", "0", "-vf", "showinfo", "-q:v", "3", pat]
     proc = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
     pts = [float(x) for x in PTS_RE.findall(proc.stderr.decode("utf-8", "ignore"))]
     files = sorted(glob.glob(os.path.join(out_dir, "k_*.jpg")))
@@ -91,6 +97,7 @@ def main():
     p.add_argument("--shard-index", type=int, default=0)
     p.add_argument("--shard-count", type=int, default=1)
     p.add_argument("--limit", type=int, default=0, help="debug: cap #videos")
+    p.add_argument("--fps", type=float, default=0, help="If > 0, extract uniformly at this FPS (e.g. 1) instead of I-frames")
     args = p.parse_args()
 
     out = Path(args.out)
@@ -113,7 +120,7 @@ def main():
             done += 1
             continue
         try:
-            files, ts = extract_keyframes(mp4, str(vdir))
+            files, ts = extract_keyframes(mp4, str(vdir), fps=args.fps)
             if not files:
                 raise RuntimeError("no keyframes")
             np.save(ts_path, np.asarray(ts, dtype=np.int32))  # written last = done marker
