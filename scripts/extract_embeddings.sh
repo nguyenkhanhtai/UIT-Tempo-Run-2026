@@ -22,6 +22,7 @@ for VLM in "${VLMS[@]}"; do
     uv run python pipeline/extract_embed.py \
       --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
       --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
+      --temporal-window $TEMPORAL_WINDOW \
       --shard-index $i --shard-count $SHARDS --batch-size $CLIP_BATCH_SIZE --limit $LIMIT_PER_SHARD &
   done
   wait

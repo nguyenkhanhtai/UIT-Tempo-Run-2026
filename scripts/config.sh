@@ -40,6 +40,10 @@ export VLMS=(
   # 4. Dòng EVA-CLIP (Hiệu năng cực tốt trong các cuộc thi truy xuất)
   # "EVA02-B-16,merged2b_s8b_b131k"
   # "EVA02-L-14,merged2b_s4b_b131k"
+  
+  # 5. Dòng Video VLM (X-CLIP)
+  # "microsoft/xclip-base-patch32,none"
+  # "microsoft/xclip-large-patch14,none"
 )
 export PRECISION="fp16"
 
@@ -90,6 +94,10 @@ export SPLIT_QUERY="false"
 # Temporal Smoothing Settings
 export SMOOTHING_WINDOW=3
 export SMOOTHING_SIGMA=1.0
+
+# Video VLM Settings (e.g. for X-CLIP)
+export FPS=0                # 0 for I-frames (default), > 0 for Uniform Sampling (e.g. 1)
+export TEMPORAL_WINDOW=8    # 1 for single frame, > 1 for snippet grouping (e.g. 8)
 
 # Batching and sharding parameters
 export SHARDS=4

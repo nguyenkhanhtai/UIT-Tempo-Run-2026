@@ -13,6 +13,7 @@ for i in $(seq 0 $((SHARDS-1))); do
   uv run python pipeline/extract_keyframes.py \
     --dataset-root $DATASET_ROOT/V3C1 \
     --dataset-root $DATASET_ROOT/V3C2 \
+    --fps $FPS \
     --out $KF_DIR --shard-index $i --shard-count $SHARDS --limit $LIMIT_PER_SHARD &
 done
 wait
