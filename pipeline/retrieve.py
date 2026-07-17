@@ -24,25 +24,7 @@ from retrieval.scorer import compute_similarity, aggregate_scores, precompute_me
 from retrieval.postprocess import apply_clustering
 from models.embedding.clip_model import ClipModel
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--shards", required=True)
-    p.add_argument("--metadata", default=None, help="dir containing .jsonl metadata")
-    p.add_argument("--tasks", required=True, help="a round's task file, e.g. public_round_tasks.jsonl")
-    p.add_argument("--out", required=True, help="submission.json path")
-    p.add_argument("--device", default="cuda:0")
-    p.add_argument("--vlms", nargs="+", required=True, help="List of model,pretrained pairs e.g. ViT-B-32,laion2b_s34b_b79k")
-    p.add_argument("--precision", default=None)
-    p.add_argument("--top-videos", type=int, default=10)
-    p.add_argument("--cand-keyframes", type=int, default=2000)
-    
-    # Toggles for metadata scoring and clustering
-    p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
-    p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
-    p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
-    p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
-    
-    args = p.parse_args()
+
 
 def run_retrieval(args):
     tasks = [json.loads(l) for l in open(args.tasks)]
@@ -59,6 +41,15 @@ def run_retrieval(args):
     # 3. Parse Queries & Encode
     all_queries, task_mapping = parse_queries(tasks)
     
+    q_top5_cats = None
+    if args.use_category:
+        print("[retrieve] Loading sentence-transformers for query classification...", flush=True)
+        from sentence_transformers import SentenceTransformer
+        st_model = SentenceTransformer('all-MiniLM-L6-v2', device=args.device)
+        from retrieval.category import predict_query_categories
+        q_top5_cats = predict_query_categories(all_queries, st_model, device=args.device)
+        del st_model
+        
     all_models_Q = []
     all_models_idx = []
     
@@ -90,12 +81,22 @@ def run_retrieval(args):
                 raise ValueError(f"Shards for {vlm_str} do not match the keyframe alignment of the first model!")
                 
         # 2. Temporal Smoothing
-        emb_smoothed = smooth_features(emb, vids)
+        emb_smoothed = smooth_features(emb, vids, smoothing_window=args.smoothing_window, sigma=args.smoothing_sigma)
         all_models_idx.append(emb_smoothed)
         
         clip = ClipModel(model_name, pretrained, device=args.device, precision=args.precision)
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
+        
+        cat_embeddings = None
+        if args.use_category:
+            from retrieval.category import V3C_CATEGORIES
+            prompts = [f"A photo about {cat}" for cat in V3C_CATEGORIES]
+            cat_embeddings = clip.encode_texts(prompts)
+            cat_embeddings = torch.from_numpy(cat_embeddings).to(dev).float()
+            scorer.cat_embeddings = cat_embeddings
+            scorer.q_top5_cats = q_top5_cats
+            scorer.first_vids = first_vids # to track video boundaries for smoothing
         
         # Free up RAM/VRAM
         del clip
@@ -148,6 +149,10 @@ def main():
     p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
     p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
     p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
+    p.add_argument("--use-category", action="store_true", help="Enable V3C Category Hard Filtering")
+    
+    p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
+    p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
     
     args = p.parse_args()
     run_retrieval(args)

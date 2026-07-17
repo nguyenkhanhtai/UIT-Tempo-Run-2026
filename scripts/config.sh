@@ -78,10 +78,14 @@ export CAPTION_MODEL="microsoft/Florence-2-large"
 # ======================================================================
 
 # --- CÁC TÙY CHỌN DÙNG METADATA ĐỂ CHẤM ĐIỂM VÀ LỌC KẾT QUẢ ---
-export USE_OCR="true"
-export USE_OD="true"
-export USE_CAPTIONING="true"
-export USE_CLUSTERING="true"
+export USE_OCR="false"
+export USE_OD="false"
+export USE_CAPTIONING="false"
+export USE_CLUSTERING="false"
+export USE_CATEGORY="false"
+
+# --- TÙY CHỌN CẮT CÂU (SUB-QUERIES) ---
+export SPLIT_QUERY="false"
 
 # Temporal Smoothing Settings
 export SMOOTHING_WINDOW=3

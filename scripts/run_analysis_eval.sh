@@ -1,17 +1,28 @@
 #!/bin/bash
 set -e
 
-source "$(dirname "$0")/config.sh"
+# Move to project root directory
+cd "$(dirname "$0")/.."
+
+source scripts/config.sh
+
+DATASET_ROOT="dataset/Video_V3C"
+KF_DIR="keyframes"
+INDEX_DIR="artifacts/index"
+TASKS_FILE=${1:-"dataset/synthetic_tasks_temp.jsonl"}
+NUM_TASKS=${2:-32}
+
+# Default model, same as run_pipeline.sh
+# Check if VLMS is empty (if not set in config.sh)
+if [ ${#VLMS[@]} -eq 0 ]; then
+  VLMS=(
+    "ViT-B-32,laion2b_s34b_b79k"
+  )
+fi
 
 echo "=========================================================="
-echo "STAGE 4: Retrieval (Query and generate submission.json)"
+echo "Running Retrieval Analysis on file: $TASKS_FILE (top $NUM_TASKS tasks)"
 echo "=========================================================="
-mkdir -p submission
-NEXT_ID=$(ls -1q submission 2>/dev/null | grep -E '^[0-9]+$' | wc -l || echo 0)
-NEXT_ID=$((NEXT_ID + 1))
-SUB_DIR="submission/${NEXT_ID}"
-mkdir -p "$SUB_DIR"
-OUT_FILE="${SUB_DIR}/submission.json"
 
 # Prepare retrieve args
 RETRIEVE_ARGS=""
@@ -24,22 +35,15 @@ if [ "$USE_CATEGORY" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-catego
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
 
-uv run python pipeline/retrieve.py \
+PYTHONPATH=. uv run python pipeline/utils/analysis.py \
+  --tasks $TASKS_FILE \
+  --n $NUM_TASKS \
   --shards $INDEX_DIR/shards \
   --metadata $INDEX_DIR/metadata \
-  --tasks $TASKS_FILE \
-  --out $OUT_FILE \
+  --keyframes $KF_DIR \
   --vlms "${VLMS[@]}" \
-  --precision $PRECISION \
   --device "cuda:0" $RETRIEVE_ARGS
 
-# Cleanse RAM after retrieval
-uv run python scripts/clean_ram.py
-
 echo "=========================================================="
-echo "Zipping submission..."
-cd "$SUB_DIR"
-zip -r submission.zip submission.json
-cd ../..
-echo "DONE! Submission file saved and zipped at: ${SUB_DIR}/submission.zip"
+echo "Analysis finished! Check figures/analysis/ for results."
 echo "=========================================================="

@@ -9,6 +9,10 @@ import difflib
 import math
 
 # Toggles for metadata scoring
+cat_embeddings = None
+q_top5_cats = None
+first_vids = None
+
 USE_OCR = True
 USE_OD = True
 USE_CAPTIONING = True
@@ -42,13 +46,21 @@ def _worker_process_chunk(start_r, end_r):
                 b_od = 0.0
                 b_cap = 0.0
                 if ocr_query and USE_OCR:
+                    total_len = sum(len(q) for q in ocr_query)
                     for q in ocr_query:
                         sim = get_ocr_similarity(q, meta_ocr_lower)
-                        b_ocr += 0.15 * math.exp(4 * (sim - 1.0))
+                        # Trọng số tương đối: chia phần 0.05 theo số kí tự của từng query
+                        weight = len(q) / total_len if total_len > 0 else 0
+                        # Vẫn giữ hàm phạt tuyệt đối để triệt tiêu các query quá ngắn
+                        length_factor = min(1.0, math.exp(2 * (len(q) / 10.0 - 1)))
+                        
+                        b_ocr += (0.1 * weight) * length_factor * math.exp(4 * (sim - 1.0))
+                    b_ocr = min(0.03, b_ocr)
                 if object_query and USE_OD:
                     for qw in object_query:
                         if qw in meta_words:
-                            b_od += 0.05
+                            b_od += 0.002
+                    b_od = min(0.01, b_od)
                 if meta_caption and USE_CAPTIONING:
                     if _G_use_st and _G_sim_matrix is not None:
                         q_idx = _G_query_caption_to_idx.get(caption_query)
@@ -61,7 +73,11 @@ def _worker_process_chunk(start_r, end_r):
                         cap_sim = get_caption_similarity(caption_query, meta_caption)
                         
                     if cap_sim > 0.4:
-                        b_cap += 0.3 * cap_sim
+                        # The longer the Caption query (up to 20 chars), the more convincing it is
+                        # Using a gentler exponential function
+                        length_factor = min(1.0, math.exp(2 * (len(caption_query) / 20.0 - 1)))
+                        b_cap += 0.05 * length_factor * cap_sim
+                    b_cap = min(0.03, b_cap)
                 
                 bonus = b_ocr + b_od + b_cap
                 if bonus > 0:
@@ -73,13 +89,17 @@ def get_ocr_similarity(query, text):
         return 0.0
     query = query.lower()
     text = text.lower()
-    if query in text:
-        return 1.0
         
     try:
         from rapidfuzz import fuzz
-        # partial_ratio finds the optimal substring matching and returns 0-100
-        return fuzz.partial_ratio(query, text) / 100.0
+        # Asymmetric partial ratio: 
+        # If the text is shorter than the query, it cannot possibly contain the full query.
+        # We must penalize it by using normal ratio. 
+        # If the text is longer, we search for the query inside the text using partial_ratio.
+        if len(query) > len(text):
+            return fuzz.ratio(query, text) / 100.0
+        else:
+            return fuzz.partial_ratio(query, text) / 100.0
     except ImportError:
         # Fallback if rapidfuzz somehow fails to load
         query_words = query.split()
@@ -123,7 +143,6 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata, return_co
     
     T_all = len(task_mapping)
     N = len(vids)
-    print(N)
     B = np.zeros((T_all, N), dtype=np.float32)
     B_ocr = np.zeros((T_all, N), dtype=np.float32) if return_components else None
     B_od = np.zeros((T_all, N), dtype=np.float32) if return_components else None
@@ -184,7 +203,7 @@ def precompute_metadata_bonus(tasks, task_mapping, vids, ts, metadata, return_co
         # GPU MATRIX MULTIPLICATION (Chunked to save VRAM and align with batching concept)
         if unique_caption_queries and unique_meta_captions:
             sim_matrix = np.zeros((q_embs.shape[0], m_embs.shape[0]), dtype=np.float32)
-            CH_sim = 10000
+            CH_sim = 100000
             for s in range(0, m_embs.shape[0], CH_sim):
                 e = min(s + CH_sim, m_embs.shape[0])
                 m_chunk = m_embs[s:e]
@@ -238,11 +257,55 @@ def compute_similarity(Q_list, idx_list, B, T_all, N, K, dev):
     top_idx = torch.zeros((T_all, K), device=dev, dtype=torch.long)
     t0 = time.time()
     
+    # Global Z-Score Standardization for Metadata Bonus
+    # This magically scales the bonus based on Inverse Document Frequency (IDF)!
+    # Rare keywords (k=1) will get massive Z-scores (~470). Common keywords (k=10000) get ~4.7
+    B_mean = B.mean(axis=1, keepdims=True)
+    B_std = B.std(axis=1, keepdims=True) + 1e-6
+    B_z = (B - B_mean) / B_std
+    
     num_models = len(Q_list)
     
     for s in range(0, N, CH):
         e = min(s + CH, N)
         
+        # --- 1. CATEGORY HARD FILTERING (CHẠY TRƯỚC TIÊN) ---
+        valid_mask = None
+        if cat_embeddings is not None and q_top5_cats is not None and first_vids is not None:
+            # Lấy vector frames của chunk hiện tại (sử dụng model đầu tiên)
+            idx_chunk_0 = torch.from_numpy(idx_list[0][s:e]).to(dev).float()
+            import torch.nn.functional as F
+            c_emb = F.normalize(cat_embeddings, p=2, dim=1)
+            i_chunk = F.normalize(idx_chunk_0, p=2, dim=1)
+            
+            # Phân loại zero-shot
+            cat_sims = c_emb @ i_chunk.T
+            raw_cats = cat_sims.argmax(dim=0).cpu().numpy()
+            
+            # Làm mịn 5-frame majority vote (Vectorized trên GPU)
+            vids_t = torch.from_numpy(first_vids[s:e]).to(dev) # [B]
+            B_size = len(vids_t)
+            
+            # Tạo 5 phiên bản dịch chuyển (shifts -2, -1, 0, 1, 2)
+            shifts = []
+            for shift in range(-2, 3):
+                shifted_rc = torch.roll(raw_cats, shifts=shift)
+                shifted_vids = torch.roll(vids_t, shifts=shift)
+                # Nếu khác video (vượt ranh giới), fallback về raw_cats của chính nó
+                valid = (shifted_vids == vids_t)
+                shifted_rc = torch.where(valid, shifted_rc, raw_cats)
+                shifts.append(shifted_rc)
+                
+            shifts_stack = torch.stack(shifts, dim=1) # [B, 5]
+            # Lấy mode (giá trị xuất hiện nhiều nhất)
+            smoothed_cats, _ = torch.mode(shifts_stack, dim=1) # [B]
+            
+            # Tạo mặt nạ lọc
+            sc_expanded = smoothed_cats.view(1, -1, 1)      # [1, B, 1]
+            q_expanded = q_top5_cats.view(T_all, 1, -1)     # [T_all, 1, 5]
+            valid_mask = (sc_expanded == q_expanded).any(dim=2) # [T_all, B]
+            
+        # --- 2. TÍNH ĐIỂM RAW COSINE & METADATA ---
         ensembled_sims = torch.zeros((T_all, e - s), device=dev, dtype=torch.float32)
         
         for m in range(num_models):
@@ -250,17 +313,19 @@ def compute_similarity(Q_list, idx_list, B, T_all, N, K, dev):
             idx_chunk = torch.from_numpy(idx_list[m][s:e]).to(dev).float()
             
             sims = Q @ idx_chunk.T
-            # Dual Softmax (Mean Centering)
-            sims = sims - sims.mean(dim=0, keepdim=True)
-            
             ensembled_sims += sims
             
         ensembled_sims /= num_models
+        ensembled_sims = 0.8 * ensembled_sims
         
-        # Add metadata bonus matrix chunk (B_chunk) before topk
-        B_chunk = torch.from_numpy(B[:, s:e]).to(dev).float()
-        ensembled_sims += B_chunk
+        B_chunk = torch.from_numpy(B_z[:, s:e]).to(dev).float()
+        ensembled_sims += 0.2 * (B_chunk * 0.001)
         
+        # --- 3. ÁP DỤNG MẶT NẠ LỌC (Soft Filtering thay vì Hard Filtering) ---
+        if valid_mask is not None:
+            # Trừ 0.1 điểm cho những frame bị sai thể loại
+            ensembled_sims[~valid_mask] -= 0.1
+            
         cat_v = torch.cat([top_val, ensembled_sims], 1)
         cat_i = torch.cat([top_idx, torch.arange(s, e, device=dev).expand(T_all, e - s)], 1)
         top_val, sel = cat_v.topk(K, dim=1)
@@ -296,7 +361,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
             if v not in v_main_centers:
                 v_main_centers[v] = center
                 v_main_rows[v] = r
-                
+                    
         # 2. Sub-queries max scores
         v_sub_max = collections.defaultdict(lambda: collections.defaultdict(float))
         v_sub_center = collections.defaultdict(dict)
@@ -309,6 +374,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                     
         # 3. Aggregate (Base + Sub Booster + Causal Bonus)
         candidates = []
+        
         for v, m_scores in v_main_scores.items():
             main_sc = m_scores[0]
             main_bonus = sum(m_scores[1:4]) / len(m_scores[1:4]) * 0.1 if len(m_scores) > 1 else 0.0
@@ -322,6 +388,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                     decay_weight = 0.2 / sid
                     sub_bonus += sim * decay_weight
                 
+                # Causal logic: sub_queries should appear chronologically
                 if len(subs_for_v) > 1:
                     ordered = True
                     sorted_sub_ids = sorted(subs_for_v.keys())
@@ -335,6 +402,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                         causal_bonus = abs(base_score) * 0.1
                         
             final_sc = base_score + sub_bonus + causal_bonus
+            
             candidates.append({
                 "video_id": v,
                 "frame_ms": v_main_centers[v],

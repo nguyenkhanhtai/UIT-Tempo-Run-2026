@@ -3,13 +3,22 @@ Purpose: Parses user queries into main and sub-queries based on sentences,
 and extracts OCR keywords enclosed in double quotes.
 """
 import re
+import os
 
 def parse_queries(tasks):
     all_queries = []
-    task_mapping = [] # (ti, is_main, sub_id)
+    task_mapping = [] # stores (task_idx, is_main, sub_idx)
+    
+    split_query = os.environ.get("SPLIT_QUERY", "true").lower() == "true"
     
     for ti, task in enumerate(tasks):
         desc = task["description"]
+        
+        if not split_query:
+            all_queries.append(desc)
+            task_mapping.append((ti, True, 0)) # Main query only
+            continue
+            
         # Split by punctuation (. ! ?)
         sentences = [s.strip() for s in re.split(r'[.!?]', desc) if s.strip()]
         
@@ -21,7 +30,7 @@ def parse_queries(tasks):
         all_queries.append(main_query)
         task_mapping.append((ti, True, 0)) # Main query
         
-        # Subsequent sentences are sub-queries
+        # All sentences starting from the second one are sub-queries
         sub_idx = 1
         for sub_q in sentences[1:]:
             all_queries.append(sub_q)

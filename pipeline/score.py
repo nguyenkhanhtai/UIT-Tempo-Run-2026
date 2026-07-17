@@ -1,62 +1,147 @@
-"""Stage 4 — score a FRAME submission.json against a ground-truth jsonl (self-contained).
+import os
+import glob
+import json
+import csv
+import argparse
 
-A prediction is a single frame (video_id, frame_ms). It is CORRECT if the frame lies
-inside the GT interval [start_ms, end_ms] AND the video_id matches.
+def get_latest_submission():
+    sub_dirs = glob.glob("submission/*/")
+    if not sub_dirs:
+        return None
+    # Sort by the integer folder name if possible
+    try:
+        sub_dirs.sort(key=lambda x: int(os.path.basename(os.path.normpath(x))))
+    except ValueError:
+        sub_dirs.sort(key=os.path.getmtime)
+    
+    latest_dir = sub_dirs[-1]
+    return os.path.join(latest_dir, "submission.json")
 
-  score = mean over tasks of  max_pred( hit * 1/rank )     hit in {0,1}
-        = MRR over frame-in-interval hits.
+def evaluate_submission(submission_path, labels_path="dataset/synthetic_eval_labels.csv"):
+    if not os.path.exists(submission_path):
+        print(f"Error: Submission file not found: {submission_path}")
+        return
+        
+    if not os.path.exists(labels_path):
+        print(f"Error: Labels file not found: {labels_path}")
+        return
+        
+    print(f"Evaluating {submission_path} against {labels_path}...")
+    
+    # 1. Load Ground Truth Labels (CSV)
+    gt = {}
+    with open(labels_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            task_id = row['task_id']
+            gt[task_id] = {
+                'video_id': row['answer_video_id'],
+                'start_ms': int(row['answer_start_ms']),
+                'end_ms': int(row['answer_end_ms'])
+            }
+            
+    # 2. Load Submission (JSON dict with 'predictions' list)
+    with open(submission_path, 'r', encoding='utf-8') as f:
+        sub_data = json.load(f)
+        
+    # Convert submission to a dictionary keyed by task_id
+    preds = {}
+    for task in sub_data.get('predictions', []):
+        preds[task['task_id']] = task['results']
+        
+    # 3. Calculate Metrics
+    evaluated_tasks = 0
+    mrr_sum = 0.0
+    recall_1 = 0
+    recall_5 = 0
+    recall_10 = 0
+    
+    # Strict metrics
+    strict_mrr_sum = 0.0
+    strict_recall_1 = 0
+    strict_recall_5 = 0
+    strict_recall_10 = 0
+    
+    for task_id, gt_info in gt.items():
+        if task_id not in preds:
+            print(f"Warning: Task {task_id} is in GT but missing from submission.")
+            continue
+            
+        evaluated_tasks += 1
+        ans_vid = gt_info['video_id']
+        start_ms = gt_info['start_ms']
+        end_ms = gt_info['end_ms']
+        
+        results = preds[task_id]
+        
+        # Standard Evaluation (Video Match Only)
+        hit_rank = -1
+        for res in results:
+            if res['video_id'] == ans_vid:
+                hit_rank = res['rank']
+                break
+                
+        if hit_rank > 0:
+            mrr_sum += 1.0 / hit_rank
+            if hit_rank <= 1: recall_1 += 1
+            if hit_rank <= 5: recall_5 += 1
+            if hit_rank <= 10: recall_10 += 1
+            
+        # Strict Evaluation (Video Match + Temporal Match)
+        strict_hit_rank = -1
+        for res in results:
+            if res['video_id'] == ans_vid and start_ms <= res['frame_ms'] <= end_ms:
+                strict_hit_rank = res['rank']
+                break
+                
+        if strict_hit_rank > 0:
+            strict_mrr_sum += 1.0 / strict_hit_rank
+            if strict_hit_rank <= 1: strict_recall_1 += 1
+            if strict_hit_rank <= 5: strict_recall_5 += 1
+            if strict_hit_rank <= 10: strict_recall_10 += 1
+            
+        # Detailed logging for each task
+        print(f"Task {task_id}: ", end="")
+        if hit_rank > 0:
+            strict_str = f"Rank {strict_hit_rank}" if strict_hit_rank > 0 else "MISS"
+            print(f"Standard Rank = {hit_rank:<2} | Strict Rank = {strict_str}")
+        else:
+            print(f"MISS (Not found in Top 10)")
 
-A correct rank-1 prediction scores 1.0; not-in-top-10 scores 0.
-"""
-from __future__ import annotations
-import argparse, json
-
-
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--submission", required=True)
-    p.add_argument("--ground-truth", required=True)
-    p.add_argument("--max-predictions", type=int, default=10)
-    args = p.parse_args()
-
-    sub = json.load(open(args.submission))
-    pred_by_task = {x["task_id"]: x for x in sub["predictions"]}
-    gts = [json.loads(l) for l in open(args.ground_truth)]
-
-    n = 0; sum_score = 0.0; hits = r1 = r5 = r10 = 0; mrr = 0.0
-    for gt in gts:
-        n += 1
-        pr = pred_by_task.get(gt["task_id"])
-        best = 0.0; best_rank = None; hit_any = False
-        if pr:
-            for r in sorted(pr["results"], key=lambda x: x["rank"])[:args.max_predictions]:
-                if r["video_id"] != gt["video_id"]:
-                    continue
-                hit = gt["start_ms"] <= r["frame_ms"] <= gt["end_ms"]
-                rs = (1.0 if hit else 0.0) / r["rank"]
-                if hit: hit_any = True
-                if rs > best:
-                    best, best_rank = rs, r["rank"]
-        sum_score += best
-        if hit_any:
-            hits += 1
-            if best_rank == 1: r1 += 1
-            if best_rank is not None and best_rank <= 5: r5 += 1
-            if best_rank is not None and best_rank <= 10: r10 += 1
-            if best_rank: mrr += 1.0 / best_rank
-
-    n = max(1, n)
-    print(json.dumps({
-        "metric": "frame_in_interval / reciprocal_rank",
-        "num_tasks": n,
-        "score": round(sum_score / n, 4),
-        "frame_hit_rate": round(hits / n, 4),
-        "recall@1": round(r1 / n, 4),
-        "recall@5": round(r5 / n, 4),
-        "recall@10": round(r10 / n, 4),
-        "mrr": round(mrr / n, 4),
-    }, indent=2))
+    # 4. Print Results
+    if evaluated_tasks == 0:
+        print("No intersecting tasks found between GT and submission.")
+        return
+        
+    print(f"\nEvaluation Results for {evaluated_tasks} queries:")
+    print("="*50)
+    print(" STANDARD METRICS (Video ID match only):")
+    print("="*50)
+    print(f" Recall@1 : {recall_1 / evaluated_tasks * 100:.2f}%")
+    print(f" Recall@5 : {recall_5 / evaluated_tasks * 100:.2f}%")
+    print(f" Recall@10: {recall_10 / evaluated_tasks * 100:.2f}%")
+    print(f" MRR      : {mrr_sum / evaluated_tasks:.4f}")
+    
+    print("\n" + "="*50)
+    print(" STRICT METRICS (Video ID + Temporal match):")
+    print("="*50)
+    print(f" Strict R@1 : {strict_recall_1 / evaluated_tasks * 100:.2f}%")
+    print(f" Strict R@5 : {strict_recall_5 / evaluated_tasks * 100:.2f}%")
+    print(f" Strict R@10: {strict_recall_10 / evaluated_tasks * 100:.2f}%")
+    print(f" Strict MRR : {strict_mrr_sum / evaluated_tasks:.4f}")
+    print("="*50)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Evaluate submission against synthetic labels.")
+    parser.add_argument("--sub", type=str, default=None, help="Path to submission.json. Defaults to latest.")
+    parser.add_argument("--gt", type=str, default="dataset/synthetic_eval_labels.csv", help="Path to GT CSV.")
+    
+    args = parser.parse_args()
+    
+    sub_path = args.sub if args.sub else get_latest_submission()
+    
+    if sub_path:
+        evaluate_submission(sub_path, args.gt)
+    else:
+        print("Could not automatically find a submission.json file.")

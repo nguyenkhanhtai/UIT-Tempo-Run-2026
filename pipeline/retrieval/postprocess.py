@@ -10,6 +10,18 @@ USE_CLUSTERING = True
 def apply_clustering(task, candidates, default_top_videos):
     max_preds = task.get("max_predictions", default_top_videos)
     
+    # 1. Chỉ giữ lại 1 frame duy nhất (có score cao nhất) cho mỗi video
+    seen_vids = set()
+    filtered_candidates = []
+    # Đảm bảo candidates đã được sort theo sim giảm dần
+    candidates = sorted(candidates, key=lambda x: x["sim"], reverse=True)
+    for c in candidates:
+        if c["video_id"] not in seen_vids:
+            seen_vids.add(c["video_id"])
+            filtered_candidates.append(c)
+    
+    candidates = filtered_candidates
+    
     num_clusters = min(max_preds, len(candidates))
     if USE_CLUSTERING and num_clusters > 1:
         from sklearn.cluster import KMeans
