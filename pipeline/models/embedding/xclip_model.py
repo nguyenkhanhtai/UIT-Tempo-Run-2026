@@ -31,10 +31,22 @@ class XClipModel(BaseEmbedding):
             else:
                 videos = [[img] for img in batch_imgs]
             
-            inputs = self.processor(videos=videos, return_tensors="pt").to(self.device)
+            inputs = self.processor(images=videos, return_tensors="pt").to(self.device)
             
             with torch.no_grad():
-                video_features = self.model.get_video_features(**inputs)
+                # WORKAROUND for transformers XCLIPModel bug: get_video_features crashes due to missing return_dict
+                pixel_values = inputs["pixel_values"]
+                batch_size, num_frames, num_channels, height, width = pixel_values.shape
+                pixel_values = pixel_values.reshape(-1, num_channels, height, width)
+
+                vision_outputs = self.model.vision_model(pixel_values=pixel_values, return_dict=True)
+                video_embeds = vision_outputs.pooler_output
+                video_embeds = self.model.visual_projection(video_embeds)
+                
+                cls_features = video_embeds.view(batch_size, num_frames, -1)
+                mit_outputs = self.model.mit(cls_features, return_dict=True)
+                video_features = mit_outputs.pooler_output
+
                 # L2 normalization for Cosine Similarity
                 video_features = video_features / video_features.norm(p=2, dim=-1, keepdim=True)
                 feats.append(video_features.cpu().float().numpy().astype(np.float16))

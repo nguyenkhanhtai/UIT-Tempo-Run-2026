@@ -92,15 +92,15 @@ export USE_CATEGORY="false"
 export SPLIT_QUERY="false"
 
 # Temporal Smoothing Settings
-export SMOOTHING_WINDOW=3
+export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
 
 # Video VLM Settings (e.g. for X-CLIP)
-export FPS=0                # 0 for I-frames (default), > 0 for Uniform Sampling (e.g. 1)
+export FPS=1                # 0 for I-frames (default), > 0 for Uniform Sampling (e.g. 1)
 export TEMPORAL_WINDOW=8    # 1 for single frame, > 1 for snippet grouping (e.g. 8)
 
 # Batching and sharding parameters
-export SHARDS=4
+export SHARDS=2
 export CLIP_BATCH_SIZE=1024
 export OCR_BATCH_SIZE=4
 export OD_BATCH_SIZE=4

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CSV_FILE=${1:-"dataset/synthetic_eval_labels.csv"}
+CSV_FILE=${1:-"dataset/synthetic_eval_labels_v0.csv"}
 # Lấy tên file không có đuôi để tạo file jsonl tương ứng
 BASENAME=$(basename "$CSV_FILE" .csv)
 JSONL_FILE="dataset/${BASENAME}_temp.jsonl"
