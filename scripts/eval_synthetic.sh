@@ -5,7 +5,7 @@ trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; f
 
 export TASKS_FILE="dataset/synthetic_tasks_v0.jsonl"
 export GT_CSV="dataset/synthetic_eval_labels_v0.csv"
-export FPS=0
+export FPS=1
 
 if [ "$FPS" = "0" ]; then
   export METHOD="keyframe"
@@ -41,7 +41,9 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export SEGMENTER_ENGINE="regex"
+export USE_OBJECT_SEGMENTER="true"
+export MAIN_QUERY_WEIGHT="2.0"
+export SEGMENTER_ENGINE="spacy"
 export SPLIT_QUERY="true"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
@@ -52,6 +54,8 @@ echo "=========================================================="
 
 RETRIEVE_ARGS=""
 if [ "$USE_SEQUENTIAL" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-sequential"; fi
+if [ "$USE_OBJECT_SEGMENTER" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-object-segmenter"; fi
+if [ -n "$SEGMENTER_ENGINE" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --segmenter-engine $SEGMENTER_ENGINE"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
 
