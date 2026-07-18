@@ -5,7 +5,7 @@ and extracts OCR keywords enclosed in double quotes.
 import re
 import os
 
-def parse_queries(tasks, use_sequential=False):
+def parse_queries(tasks, use_sequential=False, use_object_segmenter=True, segmenter_engine="regex"):
     all_queries = []
     task_mapping = [] # stores (task_idx, sentence_idx, segment_idx)
     
@@ -15,7 +15,7 @@ def parse_queries(tasks, use_sequential=False):
     obj_seg = None
     if use_sequential:
         from pipeline.retrieval.segmentation.model import get_segmenters
-        scene_seg, obj_seg = get_segmenters()
+        scene_seg, obj_seg = get_segmenters(use_object_segmenter=use_object_segmenter, engine=segmenter_engine)
             
     for ti, task in enumerate(tasks):
         desc = task["description"]
@@ -36,6 +36,9 @@ def parse_queries(tasks, use_sequential=False):
         for sent_idx, scene in enumerate(scenes):
             if use_sequential and obj_seg is not None:
                 objects = obj_seg.segment(scene)
+                if scene in objects:
+                    objects.remove(scene)
+                objects.insert(0, scene)
             else:
                 objects = [scene]
                 

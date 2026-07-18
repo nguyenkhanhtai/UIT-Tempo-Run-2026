@@ -100,7 +100,17 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
             else:
                 # Harmonic Mean (requires positive numbers, so shift from [-1, 1] to [0, 2])
                 shifted_S = S_objects + 1.0
-                h_mean = len(segments) / np.sum(1.0 / (shifted_S + 1e-6), axis=0)
+                
+                import os
+                main_weight = float(os.environ.get("MAIN_QUERY_WEIGHT", "2.0"))
+                
+                num_segs = len(segments)
+                W = np.ones((num_segs, 1), dtype=np.float32)
+                if num_segs > 1:
+                    W[0, 0] = main_weight
+                    
+                sum_W = np.sum(W)
+                h_mean = sum_W / np.sum(W / (shifted_S + 1e-6), axis=0)
                 scene_sims = h_mean - 1.0
                 
             sent_scores[sent_idx] = (np.arange(N_frames), scene_sims)
@@ -142,23 +152,29 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                 DP[0, :] = S[0, :]
                 
                 import os
+                from collections import deque
                 max_gap_ms = int(os.environ.get("MAX_SEQ_GAP_MS", "15000"))
                 
                 for m in range(1, M):
+                    q = deque()
                     for f in range(F):
-                        best_val = -np.inf
-                        best_k = 0
-                        
-                        # Look back to find a valid previous frame k (must be strictly earlier: k < f)
-                        for k in range(f-1, -1, -1):
-                            time_diff = frames[f][0] - frames[k][0]
-                            if time_diff > max_gap_ms:
-                                break  # frames are sorted by time, earlier k will exceed max_gap_ms
-                                
-                            if DP[m-1, k] > best_val:
-                                best_val = DP[m-1, k]
-                                best_k = k
-                                
+                        if f > 0:
+                            new_k = f - 1
+                            val = DP[m-1, new_k]
+                            while q and DP[m-1, q[-1]] <= val:
+                                q.pop()
+                            q.append(new_k)
+                            
+                        while q and (frames[f][0] - frames[q[0]][0] > max_gap_ms):
+                            q.popleft()
+                            
+                        if q:
+                            best_k = q[0]
+                            best_val = DP[m-1, best_k]
+                        else:
+                            best_k = 0
+                            best_val = -np.inf
+                            
                         DP[m, f] = best_val + S[m, f]
                         backptr[m, f] = best_k
                         
