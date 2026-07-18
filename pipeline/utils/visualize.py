@@ -63,7 +63,7 @@ def main():
         print(f"Auto-selected latest submission: {submission_file}")
         
     out_dir = "figures/task"
-    kf_dir = "keyframes"
+    kf_dir = os.environ.get("KF_DIR", "keyframes")
     
     if not os.path.exists(submission_file):
         print(f"File not found: {submission_file}. Please generate it first.")
