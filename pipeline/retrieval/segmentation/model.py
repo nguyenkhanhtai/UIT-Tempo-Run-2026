@@ -94,10 +94,13 @@ class SpacySegmenter(BaseSegmenter):
         cleaned_chunks = [c.strip() for c in chunks if c.strip() and len(c.strip()) > 3]
         return cleaned_chunks if cleaned_chunks else [text]
 
-def get_segmenters():
-    engine = os.environ.get("SEGMENTER_ENGINE", "regex").lower()
+def get_segmenters(use_object_segmenter=True, engine="regex"):
+    engine = engine.lower()
     scene_seg = SceneSegmenter()
     
+    if not use_object_segmenter:
+        return scene_seg, None
+        
     if engine == "spacy":
         obj_seg = SpacySegmenter()
     elif engine == "sat":
