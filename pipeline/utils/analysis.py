@@ -17,27 +17,12 @@ import retrieval.scorer as scorer
 # Global dictionary to observe values during retrieve.py execution
 observed = {}
 
-orig_precompute = scorer.precompute_metadata_bonus
-def observed_precompute(tasks, task_mapping, vids, ts, metadata):
-    print("[Observer] Intercepting precompute_metadata_bonus to isolate components in a SINGLE PASS...")
-    
-    # Run once with all components enabled
-    B_total, B_ocr, B_od, B_cap = orig_precompute(tasks, task_mapping, vids, ts, metadata, return_components=True)
-    
-    # Store the individual components
-    observed['ocr_bonus'] = B_ocr
-    observed['od_bonus'] = B_od
-    observed['caption_bonus'] = B_cap
-    observed['B_total'] = B_total
-    
-    return B_total
-
 # 2. Decorate compute_similarity to observe the final scores for ALL frames
 orig_compute = scorer.compute_similarity
-def observed_compute(Q_list, idx_list, B, T_all, N, K, dev):
+def observed_compute(Q_list, idx_list, T_all, N, K, dev):
     print(f"[Observer] Intercepting compute_similarity. Running with K={N} to capture all frames...")
-    # Call the original function with K=N to get the full final score array (CLIP + B)
-    top_idx, top_val = orig_compute(Q_list, idx_list, B, T_all, N, N, dev)
+    # Call the original function with K=N to get the full final score array
+    top_idx, top_val = orig_compute(Q_list, idx_list, T_all, N, N, dev)
     
     # Store the full results
     observed['top_idx'] = top_idx
@@ -47,7 +32,6 @@ def observed_compute(Q_list, idx_list, B, T_all, N, K, dev):
     return top_idx[:, :K], top_val[:, :K]
 
 # Apply decorators to the namespace where they are actually used
-retrieve.precompute_metadata_bonus = observed_precompute
 retrieve.compute_similarity = observed_compute
 
 def get_image_path_for_frame(vid, frame_ms, kf_dir):
@@ -104,6 +88,48 @@ def create_top_score_figure(task_id, query_text, category_name, max_score, meta_
     plt.savefig(out_path, bbox_inches='tight', dpi=150)
     plt.close(fig)
 
+def create_dp_sequence_figure(task_id, full_query, scenes, sequence_ms, vid, kf_dir, out_path):
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    
+    num_scenes = len(scenes)
+    if num_scenes == 0:
+        return
+        
+    fig, axes = plt.subplots(1, num_scenes, figsize=(6 * num_scenes, 6))
+    if num_scenes == 1:
+        axes = [axes]
+        
+    wrapped_query = textwrap.fill(f"Task: {task_id}\nFull Query: {full_query}", width=120)
+    fig.suptitle(wrapped_query + "\n[DP Optimal Scene Sequence Match]", fontsize=16, fontweight='bold')
+    
+    for i in range(num_scenes):
+        ax = axes[i]
+        scene_text = scenes[i]
+        ts_ms = sequence_ms[i] if i < len(sequence_ms) else 0
+        
+        img_path = get_image_path_for_frame(vid, ts_ms, kf_dir)
+        if img_path and os.path.exists(img_path):
+            try:
+                img = Image.open(img_path)
+                ax.imshow(img)
+            except Exception:
+                ax.text(0.5, 0.5, "Image Error", fontsize=12, ha='center')
+        else:
+            ax.text(0.5, 0.5, "No Image", fontsize=12, ha='center')
+            
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+            
+        wrapped_scene = textwrap.fill(f"Scene {i+1}: {scene_text}", width=50)
+        ax.set_title(wrapped_scene, fontsize=12, pad=10)
+        ax.set_xlabel(f"Video: {vid}\nTimestamp: {ts_ms} ms", fontsize=11, bbox=dict(facecolor='white', alpha=0.9, edgecolor='gray'))
+        
+    plt.tight_layout()
+    plt.savefig(out_path, bbox_inches='tight', dpi=150)
+    plt.close(fig)
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--tasks", required=True)
@@ -115,11 +141,8 @@ def main():
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--cand-keyframes", type=int, default=2000)
     p.add_argument("--top-videos", type=int, default=10)
-    p.add_argument("--use-ocr", action="store_true")
-    p.add_argument("--use-od", action="store_true")
-    p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
-    p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
-    p.add_argument("--use-category", action="store_true", help="Enable V3C Category Hard Filtering")
+
+    p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0)
     args = p.parse_args()
@@ -142,7 +165,11 @@ def main():
     if ret_data is None:
         print("Error: retrieve.run_retrieval did not return expected data. Make sure it was refactored correctly.")
         return
-    tasks_parsed, task_mapping, first_vids, first_ts, first_metadata, all_queries = ret_data
+    if len(ret_data) == 7:
+        tasks_parsed, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates = ret_data
+    else:
+        tasks_parsed, task_mapping, first_vids, first_ts, first_metadata, all_queries = ret_data
+        all_candidates = None
 
     # Cleanup temp files
     if os.path.exists(temp_tasks_path): os.remove(temp_tasks_path)
@@ -160,9 +187,6 @@ def main():
     for i in range(T_all):
         final_score_unsorted[i, top_idx[i]] = top_val[i]
         
-    # The pure CLIP score is Final Score - Metadata Bonus
-    clip_score = final_score_unsorted - observed['B_total']
-    
     os.makedirs("figures/analysis", exist_ok=True)
     
     from tqdm import tqdm
@@ -172,104 +196,155 @@ def main():
     
     from scipy.stats import rankdata
     
-    main_tasks = [(qi, info) for qi, info in enumerate(task_mapping) if info[1]]
-    
-    for qi, (ti, is_main, sub_id) in tqdm(main_tasks, desc="Generating per-task distributions & gathering tasks"):
+    # Group queries by task and sentence
+    import collections
+    task_groups = collections.defaultdict(lambda: collections.defaultdict(list))
+    for qi, (ti, sent_idx, seg_idx) in enumerate(task_mapping):
+        task_groups[ti][sent_idx].append(qi)
         
-        task = tasks_parsed[ti]
+    for ti, task in enumerate(tqdm(tasks_parsed, desc="Generating per-segment and aggregated distributions")):
         task_id = task.get("task_id", f"T_unknown_{ti}")
-        query_text = all_queries[qi]
         
-        task_dir = os.path.join("figures/analysis", task_id)
-        os.makedirs(task_dir, exist_ok=True)
+        # We will collect all score arrays to plot for this task
+        # format: (name, query_text, score_array)
+        plots_to_make = []
         
-        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-        axes = axes.flatten()
-        fig.suptitle(f"Score Distributions for Task {task_id}", fontsize=16)
+        task_total_scores = []
         
-        meta_total = observed.get('ocr_bonus', np.zeros_like(final_score_unsorted))[qi] + \
-                     observed.get('od_bonus', np.zeros_like(final_score_unsorted))[qi] + \
-                     observed.get('caption_bonus', np.zeros_like(final_score_unsorted))[qi]
-                     
-        score_data = {
-            "Total_Score": final_score_unsorted[qi],
-            "CLIP_Visual": clip_score[qi],
-            "Metadata_Total": meta_total,
-            "OCR": observed.get('ocr_bonus', np.zeros_like(final_score_unsorted))[qi],
-            "OD": observed.get('od_bonus', np.zeros_like(final_score_unsorted))[qi],
-            "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))[qi]
-        }
-        
-        ranks = {}
-        for name, data in score_data.items():
-            ranks[name] = rankdata(-data, method='min')
-        
-        for idx, (name, data) in enumerate(score_data.items()):
-            ax = axes[idx]
-            sns.histplot(data, bins=50, kde=True, ax=ax)
-            ax.set_title(f"{name}\nMean: {np.mean(data):.4f}, Var: {np.var(data):.4f}")
-            ax.set_xlabel("Score")
-            ax.set_ylabel("Count")
+        for sent_idx, segments in task_groups[ti].items():
+            sent_scores_list = []
             
-        plt.tight_layout()
-        plt.savefig(os.path.join(task_dir, "distribution.png"))
-        plt.close(fig)
+            for seg_idx, qi in enumerate(segments):
+                query_text = all_queries[qi]
+                seg_name = f"Sent{sent_idx+1}_Seg{seg_idx+1}"
+                if not os.environ.get("SPLIT_QUERY", "true").lower() == "true":
+                    seg_name = "Full_Query"
+                
+                seg_score = final_score_unsorted[qi]
+                plots_to_make.append((seg_name, query_text, seg_score))
+                sent_scores_list.append(seg_score)
+                
+            # Compute Sentence Total (Average of segments)
+            sent_total = np.mean(sent_scores_list, axis=0) if len(sent_scores_list) > 1 else sent_scores_list[0]
+            sent_text = " ".join([all_queries[qi] for qi in segments])
+            plots_to_make.append((f"Sent{sent_idx+1}_Total", sent_text, sent_total))
+            task_total_scores.append(sent_total)
+                
+        # Compute Task Total (Average of all sentences, as a basic visualization of task score)
+        task_total = np.mean(task_total_scores, axis=0) if len(task_total_scores) > 1 else task_total_scores[0]
+        full_query_text = task.get("description", task.get("query", " ".join([all_queries[qi] for qi in sum(task_groups[ti].values(), [])])))
+        plots_to_make.append(("Task_Total", full_query_text, task_total))
         
-        # Top 10 figures
-        for cat_name, data in score_data.items():
-            cat_dir = os.path.join(task_dir, cat_name)
-            os.makedirs(cat_dir, exist_ok=True)
+        # Precompute ranks for all categories in this task
+        task_all_ranks = {}
+        for seg_name, _, score_arr in plots_to_make:
+            task_all_ranks[seg_name] = rankdata(-score_arr, method='min')
             
-            # get top 10 indices
-            top10_idx = np.argsort(data)[-10:][::-1]
-            for rank, max_idx in enumerate(top10_idx, 1):
-                max_val = data[max_idx]
+        # Write segments.txt
+        task_base_dir = os.path.join("figures/analysis", task_id)
+        os.makedirs(task_base_dir, exist_ok=True)
+        with open(os.path.join(task_base_dir, "segments.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Task ID: {task_id}\n")
+            f.write(f"Full Query: {full_query_text}\n\n")
+            
+            scenes_text_list = []
+            for sent_idx, segments in task_groups[ti].items():
+                scene_texts = [all_queries[qi] for qi in segments]
+                scene_full = " | ".join(scene_texts)
+                scenes_text_list.append(scene_full)
                 
-                vid = str(first_vids[max_idx])
-                ts_ms = int(first_ts[max_idx])
+                f.write(f"Scene {sent_idx+1}:\n")
+                for seg_idx, qi in enumerate(segments):
+                    f.write(f"  - Object {seg_idx+1}: {all_queries[qi]}\n")
+                f.write("\n")
                 
-                scores_str = f"Scores -> Total: {score_data['Total_Score'][max_idx]:.3f} | CLIP: {score_data['CLIP_Visual'][max_idx]:.3f} | Meta: {score_data['Metadata_Total'][max_idx]:.3f} | OCR: {score_data['OCR'][max_idx]:.3f} | OD: {score_data['OD'][max_idx]:.3f} | Cap: {score_data['Captioning'][max_idx]:.3f}"
-                ranks_str = f"Ranks -> Total: #{ranks['Total_Score'][max_idx]} | CLIP: #{ranks['CLIP_Visual'][max_idx]} | Meta: #{ranks['Metadata_Total'][max_idx]} | OCR: #{ranks['OCR'][max_idx]} | OD: #{ranks['OD'][max_idx]} | Cap: #{ranks['Captioning'][max_idx]}"
+        # Generate DP Sequence Visualization
+        if all_candidates is not None and ti < len(all_candidates):
+            candidates = all_candidates[ti][1]
+            if candidates:
+                candidates.sort(key=lambda x: x["sim"], reverse=True)
+                top_cand = candidates[0]
+                if "sequence_ms" in top_cand:
+                    dp_out = os.path.join(task_base_dir, "DP_Best_Sequence.png")
+                    create_dp_sequence_figure(
+                        task_id, full_query_text, scenes_text_list, 
+                        top_cand["sequence_ms"], top_cand["video_id"], 
+                        args.keyframes, dp_out
+                    )
+            
+        for seg_name, query_text, score_arr in plots_to_make:
+            task_dir = os.path.join("figures/analysis", task_id, seg_name)
+            os.makedirs(task_dir, exist_ok=True)
+            
+            fig, axes = plt.subplots(1, 1, figsize=(6, 5))
+            fig.suptitle(f"Score Distributions for Task {task_id} ({seg_name})", fontsize=16)
+            
+            score_data = {
+                "Total_Score": score_arr,
+                "CLIP_Visual": score_arr,
+            }
+        
+            for idx, (name, data) in enumerate(score_data.items()):
+                sns.histplot(data, bins=50, kde=True, ax=axes)
+                axes.set_title(f"{name}\nMean: {np.mean(data):.4f}, Var: {np.var(data):.4f}")
+                axes.set_xlabel("Score")
+                axes.set_ylabel("Count")
                 
-                meta_str = f"Video ID: {vid}, Frame MS: {ts_ms}\n"
-                meta_str += scores_str + "\n"
-                meta_str += ranks_str + "\n"
+            plt.tight_layout()
+            plt.savefig(os.path.join(task_dir, "distribution.png"))
+            plt.close(fig)
+            
+            # Top 10 figures
+            for cat_name, data in score_data.items():
+                cat_dir = os.path.join(task_dir, cat_name)
+                os.makedirs(cat_dir, exist_ok=True)
+                
+                # get top 10 indices
+                top10_idx = np.argsort(data)[-10:][::-1]
+                for rank, max_idx in enumerate(top10_idx, 1):
+                    max_val = data[max_idx]
                     
-                if vid in first_metadata and ts_ms in first_metadata[vid]:
-                    meta = first_metadata[vid][ts_ms]
-                    if cat_name == "OCR":
-                        meta_str += f"OCR: {meta.get('ocr', '')}"
-                    elif cat_name == "OD":
-                        meta_str += f"OD: {', '.join(meta.get('objects', []))}"
-                    elif cat_name == "Captioning":
-                        meta_str += f"Caption: {meta.get('caption', '')}"
-                    else: # Total or CLIP or Meta
+                    vid = str(first_vids[max_idx])
+                    ts_ms = int(first_ts[max_idx])
+                    
+                    scores_str = f"Scores -> Total: {score_data['Total_Score'][max_idx]:.3f} | CLIP: {score_data['CLIP_Visual'][max_idx]:.3f}"
+                    
+                    curr_rank = task_all_ranks[seg_name][max_idx]
+                    ranks_str = f"Rank in {seg_name}: #{curr_rank}\n"
+                    
+                    other_ranks = []
+                    for other_name, rank_arr in task_all_ranks.items():
+                        if other_name != seg_name:
+                            other_ranks.append(f"{other_name}: #{rank_arr[max_idx]}")
+                    
+                    ranks_str += "Ranks in other queries:\n"
+                    for chunk_idx in range(0, len(other_ranks), 3):
+                        ranks_str += " | ".join(other_ranks[chunk_idx:chunk_idx+3]) + "\n"
+                    
+                    meta_str = f"Video ID: {vid}, Frame MS: {ts_ms}\n"
+                    meta_str += scores_str + "\n"
+                    meta_str += ranks_str
+                        
+                    if vid in first_metadata and ts_ms in first_metadata[vid]:
+                        meta = first_metadata[vid][ts_ms]
                         meta_str += f"OCR: {meta.get('ocr', '')}\n"
                         meta_str += f"OD: {', '.join(meta.get('objects', []))}\n"
                         meta_str += f"Caption: {meta.get('caption', '')}"
-                else:
-                    meta_str += "No metadata found."
-                    
-                img_path = get_image_path_for_frame(vid, ts_ms, args.keyframes)
-                out_img = os.path.join(cat_dir, f"top_{rank}.png")
-                figure_tasks.append((task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank))
+                    else:
+                        meta_str += "No metadata found."
+                        
+                    img_path = get_image_path_for_frame(vid, ts_ms, args.keyframes)
+                    out_img = os.path.join(cat_dir, f"top_{rank}.png")
+                    figure_tasks.append((task_id, query_text, cat_name, max_val, meta_str, img_path, out_img, rank))
 
     # === Global Top 10 across all tasks ===
     print("Generating Global Top 10 figures across all tasks...")
     global_dir = "figures/analysis/GLOBAL_TOP"
     os.makedirs(global_dir, exist_ok=True)
     
-    global_meta_total = observed.get('ocr_bonus', np.zeros_like(final_score_unsorted)) + \
-                        observed.get('od_bonus', np.zeros_like(final_score_unsorted)) + \
-                        observed.get('caption_bonus', np.zeros_like(final_score_unsorted))
-                        
     global_score_data = {
         "Total_Score": final_score_unsorted,
-        "CLIP_Visual": clip_score,
-        "Metadata_Total": global_meta_total,
-        "OCR": observed.get('ocr_bonus', np.zeros_like(final_score_unsorted)),
-        "OD": observed.get('od_bonus', np.zeros_like(final_score_unsorted)),
-        "Captioning": observed.get('caption_bonus', np.zeros_like(final_score_unsorted))
+        "CLIP_Visual": final_score_unsorted,
     }
     
     global_ranks = {}
@@ -310,8 +385,8 @@ def main():
             vid = str(first_vids[max_idx])
             ts_ms = int(first_ts[max_idx])
             
-            scores_str = f"Scores -> Total: {global_score_data['Total_Score'][qi, max_idx]:.3f} | CLIP: {global_score_data['CLIP_Visual'][qi, max_idx]:.3f} | Meta: {global_score_data['Metadata_Total'][qi, max_idx]:.3f} | OCR: {global_score_data['OCR'][qi, max_idx]:.3f} | OD: {global_score_data['OD'][qi, max_idx]:.3f} | Cap: {global_score_data['Captioning'][qi, max_idx]:.3f}"
-            ranks_str = f"Global Ranks -> Total: #{global_ranks['Total_Score'][qi, max_idx]} | CLIP: #{global_ranks['CLIP_Visual'][qi, max_idx]} | Meta: #{global_ranks['Metadata_Total'][qi, max_idx]} | OCR: #{global_ranks['OCR'][qi, max_idx]} | OD: #{global_ranks['OD'][qi, max_idx]} | Cap: #{global_ranks['Captioning'][qi, max_idx]}"
+            scores_str = f"Scores -> Total: {global_score_data['Total_Score'][qi, max_idx]:.3f} | CLIP: {global_score_data['CLIP_Visual'][qi, max_idx]:.3f}"
+            ranks_str = f"Global Ranks -> Total: #{global_ranks['Total_Score'][qi, max_idx]} | CLIP: #{global_ranks['CLIP_Visual'][qi, max_idx]}"
             
             meta_str = f"Task: {task_id} | Video ID: {vid}, Frame MS: {ts_ms}\n"
             meta_str += scores_str + "\n"
@@ -319,16 +394,9 @@ def main():
             
             if vid in first_metadata and ts_ms in first_metadata[vid]:
                 meta = first_metadata[vid][ts_ms]
-                if cat_name == "OCR":
-                    meta_str += f"OCR: {meta.get('ocr', '')}"
-                elif cat_name == "OD":
-                    meta_str += f"OD: {', '.join(meta.get('objects', []))}"
-                elif cat_name == "Captioning":
-                    meta_str += f"Caption: {meta.get('caption', '')}"
-                else: # Total or CLIP or Meta
-                    meta_str += f"OCR: {meta.get('ocr', '')}\n"
-                    meta_str += f"OD: {', '.join(meta.get('objects', []))}\n"
-                    meta_str += f"Caption: {meta.get('caption', '')}"
+                meta_str += f"OCR: {meta.get('ocr', '')}\n"
+                meta_str += f"OD: {', '.join(meta.get('objects', []))}\n"
+                meta_str += f"Caption: {meta.get('caption', '')}"
             else:
                 meta_str += "No metadata found."
                 

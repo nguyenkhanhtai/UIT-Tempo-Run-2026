@@ -27,6 +27,9 @@ dependencies = [
     "matplotlib",
     "seaborn",
     "rapidfuzz",
+    "wtpsplit>=2.2.1",
+    "spacy>=3.8.14",
+    "gradio>=6.20.0",
 ]
 
 [[tool.uv.index]]
