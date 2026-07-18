@@ -103,7 +103,13 @@ def main():
         if download_with_retry(artifacts_source, artifacts_dest, "artifacts.zip", conf_path):
             extract_and_cleanup_zip(artifacts_dest, root_dir, "artifacts.zip")
 
-        # 4. Download and Extract Video V3C.zip
+        # 4. Download and Extract keyframes.zip
+        keyframes_source = "drive:AI Tempo Run/keyframes.zip"
+        keyframes_dest = os.path.join(root_dir, "keyframes.zip")
+        if download_with_retry(keyframes_source, keyframes_dest, "keyframes.zip", conf_path):
+            extract_and_cleanup_zip(keyframes_dest, root_dir, "keyframes.zip")
+
+        # 5. Download and Extract Video V3C.zip
         zip_source = "drive:AI Tempo Run/V3C.zip"
         zip_dest = os.path.join(dataset_dir, "Video_V3C.zip")
         if download_with_retry(zip_source, zip_dest, "Video V3C.zip", conf_path):
