@@ -5,37 +5,46 @@ and extracts OCR keywords enclosed in double quotes.
 import re
 import os
 
-def parse_queries(tasks):
+def parse_queries(tasks, use_sequential=False):
     all_queries = []
-    task_mapping = [] # stores (task_idx, is_main, sub_idx)
+    task_mapping = [] # stores (task_idx, sentence_idx, segment_idx)
     
     split_query = os.environ.get("SPLIT_QUERY", "true").lower() == "true"
     
+    scene_seg = None
+    obj_seg = None
+    if use_sequential:
+        from pipeline.retrieval.segmentation.model import get_segmenters
+        scene_seg, obj_seg = get_segmenters()
+            
     for ti, task in enumerate(tasks):
         desc = task["description"]
         
         if not split_query:
             all_queries.append(desc)
-            task_mapping.append((ti, True, 0)) # Main query only
+            task_mapping.append((ti, 0, 0)) # Main query only
             continue
             
-        # Split by punctuation (. ! ?)
-        sentences = [s.strip() for s in re.split(r'[.!?]', desc) if s.strip()]
-        
-        if not sentences:
-            sentences = [desc]
+        if use_sequential and scene_seg is not None:
+            scenes = scene_seg.segment(desc)
+        else:
+            scenes = [desc]
             
-        main_query = sentences[0]
-        
-        all_queries.append(main_query)
-        task_mapping.append((ti, True, 0)) # Main query
-        
-        # All sentences starting from the second one are sub-queries
-        sub_idx = 1
-        for sub_q in sentences[1:]:
-            all_queries.append(sub_q)
-            task_mapping.append((ti, False, sub_idx))
-            sub_idx += 1
+        if not scenes:
+            scenes = [desc]
+            
+        for sent_idx, scene in enumerate(scenes):
+            if use_sequential and obj_seg is not None:
+                objects = obj_seg.segment(scene)
+            else:
+                objects = [scene]
+                
+            if not objects:
+                objects = [scene]
+                
+            for seg_idx, obj in enumerate(objects):
+                all_queries.append(obj)
+                task_mapping.append((ti, sent_idx, seg_idx))
             
     return all_queries, task_mapping
 
