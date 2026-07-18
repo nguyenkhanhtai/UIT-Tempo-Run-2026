@@ -1,7 +1,39 @@
 #!/bin/bash
 set -e
 
-source "$(dirname "$0")/config.sh"
+trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
+
+export FPS=0
+export SHARDS=2
+export LIMIT_PER_SHARD=0
+
+if [ "$FPS" = "0" ]; then
+  export METHOD="keyframe"
+else
+  export METHOD="fps/$FPS"
+fi
+
+export KF_DIR="keyframes/$METHOD"
+export INDEX_DIR="artifacts/index/$METHOD"
+
+export USE_OCR="false"
+export OCR_ENGINE="rapidocr"
+export OCR_MODEL="rapidocr"
+export OCR_BATCH_SIZE=4
+
+export USE_OD="false"
+export OD_ENGINE="yolo"
+export OD_MODEL="yolo11m.pt"
+export OD_BATCH_SIZE=4
+
+export USE_CAPTIONING="false"
+export CAPTION_ENGINE="florence2"
+export CAPTION_MODEL="microsoft/Florence-2-large"
+
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l || echo 1)
+if [ "$NUM_GPUS" -eq 0 ]; then NUM_GPUS=1; fi
 
 echo "=========================================================="
 echo "STAGE 3: Extract Metadata (OCR & YOLO)"
@@ -60,6 +92,4 @@ if [ "$USE_CAPTIONING" = "true" ]; then
 fi
 
 echo "-> Finished metadata extraction!"
-
-# Dọn dẹp RAM/VRAM
 uv run python scripts/clean_ram.py

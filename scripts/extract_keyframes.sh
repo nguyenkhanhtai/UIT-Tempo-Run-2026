@@ -1,14 +1,26 @@
 #!/bin/bash
 set -e
 
-# Source the configuration
-source "$(dirname "$0")/config.sh"
+# Catch Ctrl+C and kill background jobs to prevent zombie processes
+trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
+
+export DATASET_ROOT="dataset/Video_V3C"
+export FPS=0
+export SHARDS=2
+export LIMIT_PER_SHARD=0
+
+if [ "$FPS" = "0" ]; then
+  export METHOD="keyframe"
+else
+  export METHOD="fps/$FPS"
+fi
+
+export KF_DIR="keyframes/$METHOD"
 
 echo "=========================================================="
 echo "STAGE 1: Extract Keyframes (Cut frames from Video)"
 echo "=========================================================="
 
-# Run multiple processes (shards) in parallel to speed up extraction
 for i in $(seq 0 $((SHARDS-1))); do
   uv run python pipeline/extract_keyframes.py \
     --dataset-root $DATASET_ROOT/V3C1 \
