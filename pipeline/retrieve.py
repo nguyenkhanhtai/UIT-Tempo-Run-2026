@@ -28,18 +28,16 @@ from models.factory import get_embedding_model
 
 def run_retrieval(args):
     tasks = [json.loads(l) for l in open(args.tasks)]
-    print(f"[tasks] {len(tasks)}", flush=True)
-
+    
     # Set globals for toggles based on args
     import retrieval.scorer as scorer
     import retrieval.postprocess as postprocess
 
-    postprocess.USE_CLUSTERING = False
-
-    # 3. Parse Queries & Encode
-    all_queries, task_mapping = parse_queries(tasks, args.use_sequential)
+    from pipeline.retrieval.parser import parse_queries
     
-
+    print(f"[tasks] {len(tasks)}", flush=True)
+    all_queries, task_mapping = parse_queries(tasks, args.use_sequential, args.use_object_segmenter, args.segmenter_engine)
+    print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
         
     all_models_Q = []
     all_models_idx = []
@@ -109,8 +107,39 @@ def run_retrieval(args):
         preds.append(res)
 
     sub = {"predictions": preds}
-    json.dump(sub, open(args.out, "w"))
-    print(f"[done] wrote {args.out} ({len(preds)} tasks)", flush=True)
+    
+    import os, glob, shutil
+    out_path = args.out
+    
+    if out_path == "submission.json":
+        os.makedirs("submission", exist_ok=True)
+        sub_dirs = glob.glob("submission/*")
+        valid_dirs = [d for d in sub_dirs if os.path.basename(d).isdigit()]
+        if not valid_dirs:
+            next_id = 1
+        else:
+            valid_dirs.sort(key=lambda x: int(os.path.basename(x)))
+            next_id = int(os.path.basename(valid_dirs[-1])) + 1
+            
+        out_dir = os.path.join("submission", f"{next_id:03d}")
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, "submission.json")
+    else:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+
+    json.dump(sub, open(out_path, "w"))
+    
+    if out_path != args.out:
+        shutil.copy(out_path, args.out)
+        
+    if "out_dir" in locals():
+        import zipfile
+        zip_path = os.path.join(out_dir, "submission.zip")
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            zf.write(out_path, arcname="submission.json")
+        print(f"[done] wrote {out_path}, {zip_path} and copied to {args.out} ({len(preds)} tasks)", flush=True)
+    else:
+        print(f"[done] wrote {out_path} ({len(preds)} tasks)", flush=True)
 
     # Return data for decorators/analysis if needed
     return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates
@@ -130,7 +159,8 @@ def main():
     # Toggles for metadata scoring and clustering
 
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
-    
+    p.add_argument("--use-object-segmenter", action="store_true", help="Enable Object Segmenter for splitting scenes into objects")
+    p.add_argument("--segmenter-engine", type=str, default="regex", help="Segmenter engine to use (regex, spacy, sat)")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
     
