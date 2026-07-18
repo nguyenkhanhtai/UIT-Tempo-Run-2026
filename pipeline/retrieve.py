@@ -20,7 +20,7 @@ import torch
 from retrieval.loader import load_index
 from retrieval.temporal import smooth_features
 from retrieval.parser import parse_queries
-from retrieval.scorer import compute_similarity, aggregate_scores, precompute_metadata_bonus
+from retrieval.scorer import compute_similarity, aggregate_scores
 from retrieval.postprocess import apply_clustering
 from models.factory import get_embedding_model
 
@@ -33,22 +33,13 @@ def run_retrieval(args):
     # Set globals for toggles based on args
     import retrieval.scorer as scorer
     import retrieval.postprocess as postprocess
-    scorer.USE_OCR = args.use_ocr
-    scorer.USE_OD = args.use_od
-    scorer.USE_CAPTIONING = args.use_captioning
-    postprocess.USE_CLUSTERING = args.use_clustering
+
+    postprocess.USE_CLUSTERING = False
 
     # 3. Parse Queries & Encode
-    all_queries, task_mapping = parse_queries(tasks)
+    all_queries, task_mapping = parse_queries(tasks, args.use_sequential)
     
-    q_top5_cats = None
-    if args.use_category:
-        print("[retrieve] Loading sentence-transformers for query classification...", flush=True)
-        from sentence_transformers import SentenceTransformer
-        st_model = SentenceTransformer('all-MiniLM-L6-v2', device=args.device)
-        from retrieval.category import predict_query_categories
-        q_top5_cats = predict_query_categories(all_queries, st_model, device=args.device)
-        del st_model
+
         
     all_models_Q = []
     all_models_idx = []
@@ -88,15 +79,7 @@ def run_retrieval(args):
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
         
-        cat_embeddings = None
-        if args.use_category:
-            from retrieval.category import V3C_CATEGORIES
-            prompts = [f"A photo about {cat}" for cat in V3C_CATEGORIES]
-            cat_embeddings = clip.encode_texts(prompts)
-            cat_embeddings = torch.from_numpy(cat_embeddings).to(dev).float()
-            scorer.cat_embeddings = cat_embeddings
-            scorer.q_top5_cats = q_top5_cats
-            scorer.first_vids = first_vids # to track video boundaries for smoothing
+
         
         # Free up RAM/VRAM
         del clip
@@ -105,18 +88,18 @@ def run_retrieval(args):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    # 4. Precompute Metadata Bonus (OCR & OD) for all N frames
-    B = precompute_metadata_bonus(tasks, task_mapping, first_vids, first_ts, first_metadata)
-    
+
     # 5. Compute GPU Similarity (Ensembled Dual Softmax + Bonus)
     T_all, N = all_models_Q[0].shape[0], all_models_idx[0].shape[0]
     K = min(args.cand_keyframes, N)
+    if args.use_sequential:
+        K = N
     
-    top_idx, top_val = compute_similarity(all_models_Q, all_models_idx, B, T_all, N, K, dev)
+    top_idx, top_val = compute_similarity(all_models_Q, all_models_idx, T_all, N, K, dev)
 
     # 6. Aggregate Scores (Base + Subs + Causal Bonus)
     all_candidates = aggregate_scores(
-        task_mapping, top_idx, top_val, tasks, first_vids, first_ts, first_emb, first_metadata
+        task_mapping, top_idx, top_val, tasks, first_vids, first_ts, first_emb, first_metadata, args.use_sequential
     )
 
     # 7. Postprocess (Clustering & Formatting)
@@ -130,7 +113,7 @@ def run_retrieval(args):
     print(f"[done] wrote {args.out} ({len(preds)} tasks)", flush=True)
 
     # Return data for decorators/analysis if needed
-    return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries
+    return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates
 
 def main():
     p = argparse.ArgumentParser()
@@ -145,11 +128,8 @@ def main():
     p.add_argument("--cand-keyframes", type=int, default=2000)
     
     # Toggles for metadata scoring and clustering
-    p.add_argument("--use-ocr", action="store_true", help="Enable OCR scoring")
-    p.add_argument("--use-od", action="store_true", help="Enable OD scoring")
-    p.add_argument("--use-captioning", action="store_true", help="Enable Caption scoring")
-    p.add_argument("--use-clustering", action="store_true", help="Enable KMeans clustering")
-    p.add_argument("--use-category", action="store_true", help="Enable V3C Category Hard Filtering")
+
+    p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
     
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
