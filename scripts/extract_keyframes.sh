@@ -5,8 +5,8 @@ set -e
 trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
 
 export DATASET_ROOT="dataset/Video_V3C"
-export FPS=0
-export SHARDS=2
+export FPS=1
+export SHARDS=12
 export LIMIT_PER_SHARD=0
 
 if [ "$FPS" = "0" ]; then
