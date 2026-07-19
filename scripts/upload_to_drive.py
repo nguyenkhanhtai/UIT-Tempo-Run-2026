@@ -6,7 +6,7 @@ import json
 
 def create_rclone_config(script_dir):
     """Create a local rclone.conf file dynamically if token exists"""
-    token_path = os.path.join(script_dir, '..', 'rclone_token.json')
+    token_path = os.path.join(script_dir, 'rclone_token.json')
     conf_path = os.path.join(script_dir, 'local_rclone.conf')
     
     if os.path.exists(token_path):
