@@ -230,7 +230,10 @@ def get_segmenters(scene_engine="regex", object_engine="regex"):
     scene_engine = scene_engine.lower() if scene_engine else "regex"
     object_engine = object_engine.lower() if object_engine else "regex"
     
-    if scene_engine == "bert_srl":
+    if scene_engine in ["qwen", "phi3", "qwen1.5"]:
+        from pipeline.retrieval.segmentation.lm_segmenter import LMSegmenter
+        scene_seg = LMSegmenter(engine_name=scene_engine, mode="scene")
+    elif scene_engine == "bert_srl":
         scene_seg = BertSRLSegmenter()
     elif scene_engine == "spacy":
         scene_seg = SpacySceneSegmenter()
@@ -240,7 +243,10 @@ def get_segmenters(scene_engine="regex", object_engine="regex"):
     if object_engine == "none" or object_engine == "":
         return scene_seg, None
         
-    if object_engine == "spacy":
+    if object_engine in ["qwen", "phi3", "qwen1.5"]:
+        from pipeline.retrieval.segmentation.lm_segmenter import LMSegmenter
+        obj_seg = LMSegmenter(engine_name=object_engine, mode="object")
+    elif object_engine == "spacy":
         obj_seg = SpacySegmenter()
     elif object_engine == "sat":
         obj_seg = SaTSegmenter()
