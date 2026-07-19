@@ -24,9 +24,11 @@ def observed_compute(Q_list, idx_list, T_all, N, K, dev):
     # Call the original function with K=N to get the full final score array
     top_idx, top_val = orig_compute(Q_list, idx_list, T_all, N, N, dev)
     
-    # Store the full results
-    observed['top_idx'] = top_idx
-    observed['top_val'] = top_val
+    # Store the visual pass only. Audio may use a routed ASR-query subset,
+    # so overwriting this would break per-query analysis shapes.
+    if 'top_idx' not in observed:
+        observed['top_idx'] = top_idx
+        observed['top_val'] = top_val
     
     # Return only the top K as originally requested to avoid slowing down downstream tasks
     return top_idx[:, :K], top_val[:, :K]
@@ -134,14 +136,21 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--tasks", required=True)
     p.add_argument("--n", type=int, default=5)
-    p.add_argument("--shards", required=True)
+    p.add_argument("--visual-shards", required=True)
     p.add_argument("--metadata", required=True)
     p.add_argument("--keyframes", required=True)
     p.add_argument("--vlms", nargs="+", required=True)
+    
+    # Audio args
+    p.add_argument("--use-audio", action="store_true")
+    p.add_argument("--audio-shards", default="")
+    p.add_argument("--audio-model", default="sentence-transformers/all-MiniLM-L6-v2")
+    
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--cand-keyframes", type=int, default=2000)
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--gt", default=None, help="Path to ground truth CSV for analysis")
+    p.add_argument("--out", default="analysis_sub.json", help="Output file path")
 
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
     p.add_argument("--scene-segmenter", type=str, default="regex", help="Engine to use for scene segmentation")
@@ -261,7 +270,10 @@ def main():
         os.makedirs(task_base_dir, exist_ok=True)
         with open(os.path.join(task_base_dir, "segments.txt"), "w", encoding="utf-8") as f:
             f.write(f"Task ID: {task_id}\n")
-            f.write(f"Full Query: {full_query_text}\n\n")
+            f.write(f"Full Query: {full_query_text}\n")
+            if "route" in task:
+                f.write(f"LLM Routing Decision: {task['route']}\n")
+            f.write("\n")
             
             scenes_text_list = []
             for sent_idx, segments in task_groups[ti].items():
