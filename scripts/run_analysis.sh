@@ -15,6 +15,7 @@ export KF_DIR="keyframes/$METHOD"
 export INDEX_DIR="artifacts/index/$METHOD"
 export TASKS_FILE=${1:-"dataset/Public_round_tasks.jsonl"}
 export NUM_TASKS=${2:-5}
+export GT_CSV=${GT_CSV:-"dataset/synthetic_eval_labels_v0.csv"}
 
 export VLMS=(
   "PE-Core-bigG-14-448,meta"
@@ -41,12 +42,14 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export USE_OBJECT_SEGMENTER="true"
+export USE_SEQUENTIAL="true"
+export SCENE_SEGMENTER="regex"
 export MAIN_QUERY_WEIGHT="2.0"
-export SEGMENTER_ENGINE="spacy"
+export OBJECT_SEGMENTER="spacy"
 export SPLIT_QUERY="true"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
+export DISCOUNT_FACTOR="0.9"
 
 echo "=========================================================="
 echo "Running Retrieval Analysis on file: $TASKS_FILE (top $NUM_TASKS tasks)"
@@ -54,10 +57,11 @@ echo "=========================================================="
 
 RETRIEVE_ARGS=""
 if [ "$USE_SEQUENTIAL" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-sequential"; fi
-if [ "$USE_OBJECT_SEGMENTER" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-object-segmenter"; fi
-if [ -n "$SEGMENTER_ENGINE" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --segmenter-engine $SEGMENTER_ENGINE"; fi
+if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segmenter $SCENE_SEGMENTER"; fi
+if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
+if [ -n "$GT_CSV" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --gt $GT_CSV"; fi
 
 PYTHONPATH=. uv run python pipeline/utils/analysis.py \
   --tasks $TASKS_FILE \

@@ -36,7 +36,7 @@ def run_retrieval(args):
     from pipeline.retrieval.parser import parse_queries
     
     print(f"[tasks] {len(tasks)}", flush=True)
-    all_queries, task_mapping = parse_queries(tasks, args.use_sequential, args.use_object_segmenter, args.segmenter_engine)
+    all_queries, task_mapping = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
     print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
         
     all_models_Q = []
@@ -129,6 +129,23 @@ def run_retrieval(args):
 
     json.dump(sub, open(out_path, "w"))
     
+    # Save parameters
+    config_data = {
+        "args": vars(args),
+        "env_params": {
+            "MAIN_QUERY_WEIGHT": os.environ.get("MAIN_QUERY_WEIGHT"),
+            "SPLIT_QUERY": os.environ.get("SPLIT_QUERY"),
+            "MAX_SEQ_GAP_MS": os.environ.get("MAX_SEQ_GAP_MS"),
+            "DISCOUNT_FACTOR": os.environ.get("DISCOUNT_FACTOR"),
+            "AGG_MODE": os.environ.get("AGG_MODE")
+        }
+    }
+    
+    if "out_dir" in locals():
+        config_path = os.path.join(out_dir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump(config_data, f, indent=2)
+            
     if out_path != args.out:
         shutil.copy(out_path, args.out)
         
@@ -137,7 +154,8 @@ def run_retrieval(args):
         zip_path = os.path.join(out_dir, "submission.zip")
         with zipfile.ZipFile(zip_path, 'w') as zf:
             zf.write(out_path, arcname="submission.json")
-        print(f"[done] wrote {out_path}, {zip_path} and copied to {args.out} ({len(preds)} tasks)", flush=True)
+            zf.write(config_path, arcname="config.json")
+        print(f"[done] wrote {out_path}, {config_path}, {zip_path} and copied to {args.out} ({len(preds)} tasks)", flush=True)
     else:
         print(f"[done] wrote {out_path} ({len(preds)} tasks)", flush=True)
 
@@ -159,8 +177,8 @@ def main():
     # Toggles for metadata scoring and clustering
 
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
-    p.add_argument("--use-object-segmenter", action="store_true", help="Enable Object Segmenter for splitting scenes into objects")
-    p.add_argument("--segmenter-engine", type=str, default="regex", help="Segmenter engine to use (regex, spacy, sat)")
+    p.add_argument("--scene-segmenter", type=str, default="regex", help="Segmenter engine for scenes (regex, bert_srl)")
+    p.add_argument("--object-segmenter", type=str, default="regex", help="Segmenter engine for objects (regex, spacy, sat, scenegraph, none)")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
     

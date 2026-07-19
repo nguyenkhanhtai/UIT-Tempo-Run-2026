@@ -34,10 +34,11 @@ def load_video(collection_id, video_id, timestamp_ms):
     """
     return html_code
 
-def generate_snippet(collection_id, video_id, timestamp_ms):
+def generate_snippet(collection_id, video_id, timestamp_ms, duration):
     collection_id = collection_id.strip().upper()
     video_id = video_id.strip()
     timestamp_ms = timestamp_ms.strip()
+    duration = int(duration)
     
     video_path = os.path.join("dataset", "Video_V3C", collection_id, "videos", video_id, f"{video_id}.mp4")
     
@@ -49,23 +50,29 @@ def generate_snippet(collection_id, video_id, timestamp_ms):
     except ValueError:
         t_sec = 0.0
         
-    out_path = f"/tmp/{video_id}_{int(t_sec)}.mp4"
+    out_path = f"/tmp/{video_id}_{int(t_sec)}_{duration}.mp4"
     start_time = max(0, t_sec - 2) # Bắt đầu sớm 2s để dễ xem
     
     cmd = [
         "ffmpeg", "-y", 
         "-ss", str(start_time),
-        "-i", video_path, 
-        "-t", "10", 
+        "-i", video_path
+    ]
+    
+    if duration > 0:
+        cmd.extend(["-t", str(duration)])
+        
+    cmd.extend([
         "-c:v", "libx264", 
         "-preset", "ultrafast", 
         "-c:a", "aac", 
         out_path
-    ]
+    ])
     
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return out_path, f"✅ Đã tạo đoạn cắt 10s (từ {start_time:.1f}s)"
+        msg = f"✅ Đã tạo đoạn cắt {duration}s (từ {start_time:.1f}s)" if duration > 0 else f"✅ Đã convert video từ {start_time:.1f}s đến hết"
+        return out_path, msg
     except Exception as e:
         return None, f"❌ Lỗi ffmpeg: {str(e)}"
 
@@ -77,20 +84,21 @@ with gr.Blocks(title="V3C Video Viewer") as demo:
         col_id = gr.Textbox(label="Collection ID", placeholder="VD: V3C1", value="V3C1")
         vid_id = gr.Textbox(label="Video ID", placeholder="VD: 00001", value="00001")
         ts_ms = gr.Textbox(label="Timestamp (milliseconds)", placeholder="VD: 15200", value="15200")
+        duration = gr.Number(label="Duration (s) [0 = Full video]", value=10, precision=0)
         
     with gr.Row():
-        btn_snippet = gr.Button("✂️ Cắt & Đổi đuôi 10s (Khuyên dùng)", variant="primary")
+        btn_snippet = gr.Button("✂️ Cắt & Đổi đuôi (Khuyên dùng)", variant="primary")
         btn = gr.Button("▶️ Mở HTML5 Trực tiếp (Chỉ hỗ trợ Safari)", variant="secondary")
     
     with gr.Tab("Trình phát Snippet (H.264)"):
         status_text = gr.Markdown()
-        vid_player = gr.Video(label="Video Snippet (10 giây)", width=800)
+        vid_player = gr.Video(label="Video Snippet", width=800)
         
     with gr.Tab("Trình phát HTML5 (Bản gốc)"):
         output_html = gr.HTML()
     
     btn.click(fn=load_video, inputs=[col_id, vid_id, ts_ms], outputs=output_html)
-    btn_snippet.click(fn=generate_snippet, inputs=[col_id, vid_id, ts_ms], outputs=[vid_player, status_text])
+    btn_snippet.click(fn=generate_snippet, inputs=[col_id, vid_id, ts_ms, duration], outputs=[vid_player, status_text])
     
 
 

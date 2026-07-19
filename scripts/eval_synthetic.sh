@@ -41,12 +41,13 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export USE_OBJECT_SEGMENTER="true"
-export MAIN_QUERY_WEIGHT="2.0"
-export SEGMENTER_ENGINE="spacy"
+export SCENE_SEGMENTER="regex"
+export MAIN_QUERY_WEIGHT="1.0"
+export OBJECT_SEGMENTER="none"
 export SPLIT_QUERY="true"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
+export DISCOUNT_FACTOR="0.9"
 
 echo "=========================================================="
 echo "Running Validation on file: $TASKS_FILE"
@@ -54,8 +55,8 @@ echo "=========================================================="
 
 RETRIEVE_ARGS=""
 if [ "$USE_SEQUENTIAL" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-sequential"; fi
-if [ "$USE_OBJECT_SEGMENTER" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-object-segmenter"; fi
-if [ -n "$SEGMENTER_ENGINE" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --segmenter-engine $SEGMENTER_ENGINE"; fi
+if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segmenter $SCENE_SEGMENTER"; fi
+if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
 

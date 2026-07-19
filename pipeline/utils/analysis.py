@@ -141,11 +141,27 @@ def main():
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--cand-keyframes", type=int, default=2000)
     p.add_argument("--top-videos", type=int, default=10)
+    p.add_argument("--gt", default=None, help="Path to ground truth CSV for analysis")
 
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
+    p.add_argument("--scene-segmenter", type=str, default="regex", help="Engine to use for scene segmentation")
+    p.add_argument("--object-segmenter", type=str, default="spacy", help="Engine to use for object segmentation")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0)
     args = p.parse_args()
+
+    # Load GT if provided
+    gt_data = {}
+    if args.gt and os.path.exists(args.gt):
+        import csv
+        try:
+            with open(args.gt, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    gt_data[row['task_id']] = row
+            print(f"Loaded {len(gt_data)} ground truth entries from {args.gt}")
+        except Exception as e:
+            print(f"Failed to load GT file {args.gt}: {e}")
 
     # Cap tasks
     with open(args.tasks, 'r') as f:
@@ -256,6 +272,34 @@ def main():
                 f.write(f"Scene {sent_idx+1}:\n")
                 for seg_idx, qi in enumerate(segments):
                     f.write(f"  - Object {seg_idx+1}: {all_queries[qi]}\n")
+                f.write("\n")
+                
+            # Add Ground Truth info if available
+            task_gt = gt_data.get(task_id)
+            if task_gt:
+                gt_vid = task_gt['answer_video_id']
+                gt_start = float(task_gt['answer_start_ms'])
+                gt_end = float(task_gt['answer_end_ms'])
+                
+                # Find matching frames in first_vids and first_ts
+                matching_mask = (first_vids == gt_vid) & (first_ts >= gt_start) & (first_ts <= gt_end)
+                matching_indices = np.where(matching_mask)[0]
+                
+                f.write("=== Ground Truth ===\n")
+                f.write(f"Video: {gt_vid}, {gt_start}ms - {gt_end}ms\n")
+                
+                if len(matching_indices) > 0:
+                    # Ranks are computed using max over score, so higher rank means lower score.
+                    # Wait, rankdata(-score) assigns rank 1 to the max score.
+                    gt_scores = task_total[matching_indices]
+                    max_gt_idx = matching_indices[np.argmax(gt_scores)]
+                    gt_rank = task_all_ranks['Task_Total'][max_gt_idx]
+                    
+                    f.write(f"Highest Score among GT frames: {np.max(gt_scores):.4f}\n")
+                    f.write(f"Rank of Highest GT Frame (in Task_Total): {int(gt_rank)}\n")
+                    f.write(f"Frame details: Video {first_vids[max_gt_idx]}, Timestamp: {first_ts[max_gt_idx]}ms\n")
+                else:
+                    f.write("No valid frames for this Ground Truth found in the sampled index.\n")
                 f.write("\n")
                 
         # Generate DP Sequence Visualization

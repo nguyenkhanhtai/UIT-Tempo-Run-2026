@@ -154,6 +154,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                 import os
                 from collections import deque
                 max_gap_ms = int(os.environ.get("MAX_SEQ_GAP_MS", "15000"))
+                discount_factor = float(os.environ.get("DISCOUNT_FACTOR", "0.9"))
                 
                 for m in range(1, M):
                     q = deque()
@@ -175,7 +176,7 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                             best_k = 0
                             best_val = -np.inf
                             
-                        DP[m, f] = best_val + S[m, f]
+                        DP[m, f] = best_val + S[m, f] * (discount_factor ** m)
                         backptr[m, f] = best_k
                         
                 best_f = int(np.argmax(DP[M-1, :]))
