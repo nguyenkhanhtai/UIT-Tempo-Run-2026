@@ -10,12 +10,20 @@ Added features (Merged):
 - OOP model loading.
 - OCR Hard Filtering.
 - KMeans Clustering for Diversity.
+- LLM Router for intelligent Modality Fusion.
 
 Refactored to use modular architecture under `pipeline/retrieval/`.
 """
-from __future__ import annotations
-import argparse, json
+import argparse
+import glob
+import os
+import json
+import shutil
+import collections
+from pathlib import Path
+import numpy as np
 import torch
+from tqdm import tqdm
 
 from retrieval.loader import load_index
 from retrieval.temporal import smooth_features
@@ -24,48 +32,85 @@ from retrieval.scorer import compute_similarity, aggregate_scores
 from retrieval.postprocess import apply_clustering
 from models.factory import get_embedding_model
 
+def route_asr_queries(tasks, engine_name="qwen"):
+    """Attach LLM ASR routes to tasks and return (router, routes)."""
+    try:
+        from pipeline.retrieval.routing.lm_router import LMRouter
+        lm_router = LMRouter(engine_name=engine_name)
+        routes = lm_router.route_batch([task["description"] for task in tasks])
+    except Exception as e:
+        print(f"[retrieve] Warning: Could not load LMRouter: {e}")
+        lm_router = None
+        routes = [{"Use_asr": False, "asr_query": None} for _ in tasks]
 
+    for task, route in zip(tasks, routes):
+        task["route"] = route
 
-def run_retrieval(args):
-    tasks = [json.loads(l) for l in open(args.tasks)]
-    
-    # Set globals for toggles based on args
-    import retrieval.scorer as scorer
-    import retrieval.postprocess as postprocess
+    return lm_router, routes
 
-    from pipeline.retrieval.parser import parse_queries
-    
-    print(f"[tasks] {len(tasks)}", flush=True)
-    all_queries, task_mapping = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
-    print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
-        
+def build_asr_queries(tasks, routes):
+    audio_queries = []
+    audio_task_mapping = []
+
+    for ti, (task, route) in enumerate(zip(tasks, routes)):
+        asr_query = route.get("asr_query")
+        if route.get("Use_asr", False) and isinstance(asr_query, str) and asr_query.strip():
+            audio_queries.append(asr_query.strip())
+            audio_task_mapping.append((ti, 0, 0))
+        elif route.get("Use_asr", False):
+            task["route"] = {"Use_asr": False, "asr_query": None}
+
+    return audio_queries, audio_task_mapping
+
+def rrf_fuse(candidates1, candidates2=None, k=60):
+    fused_tasks = []
+    candidates2 = candidates2 or [(task, []) for task, _ in candidates1]
+
+    for (task, cands1), (_, cands2) in zip(candidates1, candidates2):
+        scores = {}
+        info = {}
+        route = task.get("route", {"Use_asr": False, "asr_query": None})
+
+        # ALWAYS ENFORCE VISUAL = TRUE to avoid catastrophic recall drop
+        for rank, cand in enumerate(cands1):
+            vid = cand["video_id"]
+            scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
+            info[vid] = cand
+
+        if route.get("Use_asr", False) and route.get("asr_query"):
+            for rank, cand in enumerate(cands2):
+                vid = cand["video_id"]
+                scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
+                if vid not in info:
+                    info[vid] = cand
+
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        for vid, sc in sorted_scores:
+            info[vid]["sim"] = sc
+        fused = [info[vid] for vid, sc in sorted_scores]
+        fused_tasks.append((task, fused))
+    return fused_tasks
+
+def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
     all_models_Q = []
     all_models_idx = []
     
     first_vids, first_ts, first_metadata, first_emb = None, None, None, None
-    dev = args.device
     
     for vlm_str in args.vlms:
-        parts = vlm_str.split(",")
-        model_name = parts[0]
-        pretrained = parts[1] if len(parts) > 1 and parts[1] else None
-        
+        model_name, pretrained = vlm_str.split(",")
         model_safe = model_name.replace("/", "_")
         pre_safe = pretrained.replace("/", "_") if pretrained else "none"
         
-        from pathlib import Path
-        shard_dir = Path(args.shards) / f"{model_safe}_{pre_safe}"
+        shard_dir = Path(args.visual_shards) / f"{model_safe}_{pre_safe}"
         
         # 1. Load Data
+        print(f"[retrieve] Loading index for {vlm_str} from {shard_dir}...")
         emb, vids, ts, metadata = load_index(str(shard_dir), args.metadata if first_metadata is None else None)
         
         if first_vids is None:
-            first_vids = vids
-            first_ts = ts
-            first_metadata = metadata
-            first_emb = emb
+            first_vids, first_ts, first_metadata, first_emb = vids, ts, metadata, emb
         else:
-            import numpy as np
             if not np.array_equal(first_vids, vids) or not np.array_equal(first_ts, ts):
                 raise ValueError(f"Shards for {vlm_str} do not match the keyframe alignment of the first model!")
                 
@@ -73,11 +118,10 @@ def run_retrieval(args):
         emb_smoothed = smooth_features(emb, vids, smoothing_window=args.smoothing_window, sigma=args.smoothing_sigma)
         all_models_idx.append(emb_smoothed)
         
+        # 3. Encode Queries
         clip = get_embedding_model(model_name, pretrained, device=args.device, precision=args.precision)
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
-        
-
         
         # Free up RAM/VRAM
         del clip
@@ -86,8 +130,7 @@ def run_retrieval(args):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-
-    # 5. Compute GPU Similarity (Ensembled Dual Softmax + Bonus)
+    # 4. Compute GPU Similarity
     T_all, N = all_models_Q[0].shape[0], all_models_idx[0].shape[0]
     K = min(args.cand_keyframes, N)
     if args.use_sequential:
@@ -95,21 +138,79 @@ def run_retrieval(args):
     
     top_idx, top_val = compute_similarity(all_models_Q, all_models_idx, T_all, N, K, dev)
 
-    # 6. Aggregate Scores (Base + Subs + Causal Bonus)
-    all_candidates = aggregate_scores(
+    # 5. Aggregate Scores
+    all_candidates_visual = aggregate_scores(
         task_mapping, top_idx, top_val, tasks, first_vids, first_ts, first_emb, first_metadata, args.use_sequential
     )
+    
+    return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K
 
-    # 7. Postprocess (Clustering & Formatting)
+def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first_vids, first_ts, first_metadata, dev, N, K):
+    if not audio_queries:
+        print("[retrieve] No valid ASR queries from LMRouter; skipping Audio Modality.")
+        return [(task, []) for task in tasks]
+
+    print(f"[retrieve] Loading Audio Modality for {len(audio_queries)} ASR queries...")
+    audio_model_safe = args.audio_model.replace("/", "_")
+    audio_shard_dir = os.path.join(args.audio_shards, audio_model_safe)
+    
+    if not os.path.exists(audio_shard_dir):
+        raise SystemExit(f"[retrieve] Lỗi: Không tìm thấy thư mục {audio_shard_dir}. Hãy chạy scripts/extract_audio_features.sh trước!")
+        
+    audio_emb, audio_vids, audio_ts, _ = load_index(audio_shard_dir, meta_dir=None)
+    
+    # Verify alignment
+    if not np.array_equal(first_vids, audio_vids) or not np.array_equal(first_ts, audio_ts):
+        raise ValueError(f"[retrieve] Lỗi: Audio features không đồng bộ với Visual features! Hãy chạy lại extract_audio_features.sh")
+        
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        raise SystemExit("[retrieve] Please run: uv pip install sentence-transformers")
+        
+    print(f"[retrieve] Loading Audio Embedding Model: {args.audio_model}")
+    audio_model = SentenceTransformer(args.audio_model, device=dev)
+    
+    print("[retrieve] Encoding ASR Queries for Audio...")
+    Q_audio = audio_model.encode(audio_queries, convert_to_tensor=True, show_progress_bar=True, normalize_embeddings=True).to(dev).float()
+
+    print("[retrieve] Computing GPU Similarity for Audio...")
+    top_idx_a, top_val_a = compute_similarity([Q_audio], [audio_emb], len(audio_queries), N, K, dev)
+
+    print("[retrieve] Aggregating Scores for Audio...")
+    subset_tasks = [tasks[ti] for ti, _, _ in audio_task_mapping]
+    subset_mapping = [(i, sent_idx, seg_idx) for i, (_, sent_idx, seg_idx) in enumerate(audio_task_mapping)]
+    subset_candidates = aggregate_scores(
+        subset_mapping, top_idx_a, top_val_a, subset_tasks, first_vids, first_ts, audio_emb, first_metadata, False
+    )
+
+    all_candidates_audio = [(task, []) for task in tasks]
+    for (ti, _, _), (_, candidates) in zip(audio_task_mapping, subset_candidates):
+        all_candidates_audio[ti] = (tasks[ti], candidates)
+
+    return all_candidates_audio
+
+def fuse_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio):
+    if all_candidates_audio is not None:
+        print("[retrieve] Fusing Visual and ASR Audio candidates...")
+        all_candidates_final = rrf_fuse(all_candidates_visual, all_candidates_audio, k=60)
+    else:
+        all_candidates_final = all_candidates_visual
+
+    print("[retrieve] Postprocessing and Clustering...")
     preds = []
-    for task, candidates in all_candidates:
+        
+    for task, candidates in all_candidates_final:
         res = apply_clustering(task, candidates, args.top_videos)
         preds.append(res)
+        
+    return preds, all_candidates_final
 
+def save_submission(args, preds):
+    """Save submission.json and config.json; return the submission directory (or None)."""
     sub = {"predictions": preds}
-    
-    import os, glob, shutil
     out_path = args.out
+    out_dir = None
     
     if out_path == "submission.json":
         os.makedirs("submission", exist_ok=True)
@@ -125,7 +226,8 @@ def run_retrieval(args):
         os.makedirs(out_dir, exist_ok=True)
         out_path = os.path.join(out_dir, "submission.json")
     else:
-        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        out_dir = os.path.dirname(os.path.abspath(out_path))
+        os.makedirs(out_dir, exist_ok=True)
 
     json.dump(sub, open(out_path, "w"))
     
@@ -141,30 +243,104 @@ def run_retrieval(args):
         }
     }
     
-    if "out_dir" in locals():
-        config_path = os.path.join(out_dir, "config.json")
-        with open(config_path, "w") as f:
-            json.dump(config_data, f, indent=2)
+    config_path = os.path.join(out_dir, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(config_data, f, indent=2)
             
     if out_path != args.out:
         shutil.copy(out_path, args.out)
         
-    if "out_dir" in locals():
-        import zipfile
-        zip_path = os.path.join(out_dir, "submission.zip")
-        with zipfile.ZipFile(zip_path, 'w') as zf:
-            zf.write(out_path, arcname="submission.json")
-            zf.write(config_path, arcname="config.json")
-        print(f"[done] wrote {out_path}, {config_path}, {zip_path} and copied to {args.out} ({len(preds)} tasks)", flush=True)
-    else:
-        print(f"[done] wrote {out_path} ({len(preds)} tasks)", flush=True)
+    import zipfile
+    zip_path = os.path.join(out_dir, "submission.zip")
+    with zipfile.ZipFile(zip_path, 'w') as zf:
+        zf.write(out_path, arcname="submission.json")
+        zf.write(config_path, arcname="config.json")
+    print(f"[done] wrote {out_path}, {config_path}, {zip_path} ({len(preds)} tasks)", flush=True)
+    
+    return out_dir
+
+def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
+    """Write segments.txt and routing.txt into the submission folder."""
+    os.makedirs(out_dir, exist_ok=True)
+    
+    # --- segments.txt ---
+    with open(os.path.join(out_dir, "segments.txt"), "w", encoding="utf-8") as f:
+        for ti, task in enumerate(tasks):
+            f.write(f"Task ID: {task.get('task_id', ti)}\n")
+            f.write(f"Full Query: {task.get('description', '')}\n")
+            segs = task_segments.get(ti, {})
+            if segs:
+                for sent_idx in sorted(segs):
+                    items = segs[sent_idx]
+                    # First item (seg_idx==0) is always the scene
+                    scene_text = items[0]["text"] if items else ""
+                    f.write(f"  Scene {sent_idx + 1}: {scene_text}\n")
+                    for item in items[1:]:
+                        f.write(f"    - Object: {item['text']}\n")
+            else:
+                f.write(f"  (No segmentation — full query used)\n")
+            f.write("\n")
+    
+    # --- routing.txt ---
+    with open(os.path.join(out_dir, "routing.txt"), "w", encoding="utf-8") as f:
+        for task, _ in all_candidates_final:
+            route = task.get("route", {})
+            f.write(f"Task ID: {task.get('task_id', '?')}\n")
+            f.write(f"Full Query: {task.get('description', '')}\n")
+            if route:
+                use_asr = route.get("Use_asr", False) and bool(route.get("asr_query"))
+                f.write(f"  Visual: ON (always)\n")
+                f.write(f"  ASR:    {'ON' if use_asr else 'OFF'}\n")
+                f.write(f"  ASR query: {route.get('asr_query') or 'NULL'}\n")
+            else:
+                f.write("  Visual: ON (always)\n")
+                f.write("  ASR:    OFF (no router - ASR not used)\n")
+                f.write("  ASR query: NULL\n")
+            f.write("\n")
+    
+    print(f"[debug] wrote segments.txt and routing.txt to {out_dir}", flush=True)
+
+def run_retrieval(args):
+    tasks = [json.loads(l) for l in open(args.tasks)]
+    dev = args.device
+    
+    print(f"[tasks] {len(tasks)}", flush=True)
+    all_queries, task_mapping, task_segments = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
+    print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
+        
+    # 1. Process Visual Modality
+    visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
+    all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K = visual_res
+    
+    # 2. Route ASR needs, then process Audio Modality (Optional)
+    all_candidates_audio = None
+    lm_router = None
+    if args.use_audio:
+        lm_router, routes = route_asr_queries(tasks, engine_name="qwen")
+        audio_queries, audio_task_mapping = build_asr_queries(tasks, routes)
+        all_candidates_audio = process_audio_modality(
+            args, tasks, audio_task_mapping, audio_queries,
+            first_vids, first_ts, first_metadata, dev, N, K
+        )
+        if lm_router is not None and hasattr(lm_router, "cleanup"):
+            lm_router.cleanup()
+
+    # 3. Fuse and Cluster
+    preds, all_candidates_final = fuse_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio)
+    
+    # 4. Save Submission
+    out_dir = save_submission(args, preds)
+    
+    # 5. Save Debug Info (segments + routing)
+    if out_dir:
+        save_debug_info(out_dir, tasks, task_segments, all_candidates_final)
 
     # Return data for decorators/analysis if needed
-    return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates
+    return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates_final
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--shards", required=True)
+    p.add_argument("--visual-shards", required=True)
     p.add_argument("--metadata", default=None, help="dir containing .jsonl metadata")
     p.add_argument("--tasks", required=True, help="a round's task file, e.g. public_round_tasks.jsonl")
     p.add_argument("--out", required=True, help="submission.json path")
@@ -174,8 +350,12 @@ def main():
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--cand-keyframes", type=int, default=2000)
     
+    # Audio args
+    p.add_argument("--use-audio", action="store_true", help="Enable audio retrieval and fuse with visual")
+    p.add_argument("--audio-shards", default=None, help="Path to audio index shards")
+    p.add_argument("--audio-model", default="sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace text embedding model for audio")
+    
     # Toggles for metadata scoring and clustering
-
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")
     p.add_argument("--scene-segmenter", type=str, default="regex", help="Segmenter engine for scenes (regex, bert_srl)")
     p.add_argument("--object-segmenter", type=str, default="regex", help="Segmenter engine for objects (regex, spacy, sat, scenegraph, none)")

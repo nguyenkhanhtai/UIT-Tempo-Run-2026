@@ -63,7 +63,7 @@ def main():
     model_safe = args.model.replace("/", "_")
     pre_safe = args.pretrained.replace("/", "_") if args.pretrained else "none"
     model_dir_name = f"{model_safe}_{pre_safe}"
-    shard_dir = Path(args.out) / "shards" / model_dir_name
+    shard_dir = Path(args.out) / "visual" / model_dir_name
     shard_dir.mkdir(parents=True, exist_ok=True)
     fail_log = Path(args.out) / f"failed_embed_{model_dir_name}_shard{args.shard_index}.txt"
 
