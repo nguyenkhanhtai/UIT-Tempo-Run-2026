@@ -16,6 +16,14 @@ def parse_queries(tasks, use_sequential=False, scene_segmenter="regex", object_s
     if use_sequential:
         from pipeline.retrieval.segmentation.model import get_segmenters
         scene_seg, obj_seg = get_segmenters(scene_engine=scene_segmenter, object_engine=object_segmenter)
+        
+    # Batched Scene Segmentation
+    all_scenes_list = []
+    if use_sequential and scene_seg is not None:
+        if hasattr(scene_seg, "segment_batch"):
+            all_scenes_list = scene_seg.segment_batch([task["description"] for task in tasks])
+        else:
+            all_scenes_list = [scene_seg.segment(task["description"]) for task in tasks]
             
     for ti, task in enumerate(tasks):
         desc = task["description"]
@@ -26,7 +34,7 @@ def parse_queries(tasks, use_sequential=False, scene_segmenter="regex", object_s
             continue
             
         if use_sequential and scene_seg is not None:
-            scenes = scene_seg.segment(desc)
+            scenes = all_scenes_list[ti] if ti < len(all_scenes_list) else [desc]
         else:
             scenes = [desc]
             
@@ -49,7 +57,33 @@ def parse_queries(tasks, use_sequential=False, scene_segmenter="regex", object_s
                 all_queries.append(obj)
                 task_mapping.append((ti, sent_idx, seg_idx))
             
-    return all_queries, task_mapping
+    # Build per-task segment info for logging
+    task_segments = {}
+    for query, (ti, sent_idx, seg_idx) in zip(all_queries, task_mapping):
+        if ti not in task_segments:
+            task_segments[ti] = {}
+        if sent_idx not in task_segments[ti]:
+            task_segments[ti][sent_idx] = []
+        if seg_idx == 0:  # scene-level query
+            task_segments[ti][sent_idx].insert(0, {"type": "scene", "text": query})
+        else:
+            task_segments[ti][sent_idx].append({"type": "object", "text": query})
+
+    if use_sequential:
+        if hasattr(scene_seg, "cleanup"):
+            scene_seg.cleanup()
+        if hasattr(obj_seg, "cleanup"):
+            obj_seg.cleanup()
+            
+        del scene_seg
+        del obj_seg
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return all_queries, task_mapping, task_segments
 
 def extract_ocr_queries(desc):
     quotes = re.findall(r'"([^"]*)"', desc)
