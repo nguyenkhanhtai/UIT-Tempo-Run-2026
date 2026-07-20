@@ -352,6 +352,7 @@ def run_retrieval(args):
         
     for ti, task in enumerate(tasks):
         task["expanded_queries"] = expanded_queries_list[ti]
+        task["overlap_threshold"] = args.overlap_threshold
     # 1. Process Visual Modality
     visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
     all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs = visual_res
@@ -407,6 +408,7 @@ def main():
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
     p.add_argument("--num-expansions", type=int, default=2, help="Number of queries to expand for reranking")
+    p.add_argument("--overlap-threshold", type=int, default=5000, help="Overlap threshold in ms for postprocessing")
     
     args = p.parse_args()
     run_retrieval(args)

@@ -58,40 +58,54 @@ def apply_reranking(ti, task, candidates, default_top_videos, emb_lookup, first_
                 
             candidates = sorted(valid_cands, key=lambda x: x["sim"], reverse=True)
             
-    # Clustering logic: Chỉ giữ lại 1 frame duy nhất (có score cao nhất) cho mỗi video
-    seen_vids = set()
+    # Flatten all candidates and their frames into a single pool
+    all_frames_flat = []
     for c in candidates:
-        if c["video_id"] not in seen_vids:
-            seen_vids.add(c["video_id"])
-            filtered_candidates.append(c)
+        if "all_frames" in c and len(c["all_frames"]) > 0:
+            for f in c["all_frames"]:
+                all_frames_flat.append({
+                    "video_id": c["video_id"],
+                    "frame_ms": f["frame_ms"],
+                    "sim": float(f["sim"])
+                })
+        else:
+            all_frames_flat.append({
+                "video_id": c["video_id"],
+                "frame_ms": c["frame_ms"],
+                "sim": float(c["sim"])
+            })
+            
+    # Sort all frames descending by sim
+    all_frames_flat.sort(key=lambda x: x["sim"], reverse=True)
     
     results = []
+    # Define an overlap threshold in milliseconds
+    overlap_threshold = task.get("overlap_threshold", 5000)
+    added_frames = {}  # video_id -> list of selected frame_ms
     
-    for res in filtered_candidates:
+    for f in all_frames_flat:
         if len(results) >= max_preds:
             break
             
-        if "all_frames" in res and len(res["all_frames"]) > 0:
-            # Sắp xếp tất cả các frame của video này theo điểm similarity giảm dần
-            sorted_frames = sorted(res["all_frames"], key=lambda x: x["sim"], reverse=True)
-            # Lấy tối đa 2 frame
-            top_frames = sorted_frames[:2]
-            
-            for f in top_frames:
-                if len(results) >= max_preds:
+        vid = f["video_id"]
+        f_ms = f["frame_ms"]
+        
+        # Check overlap
+        is_overlap = False
+        if vid in added_frames:
+            for added_ms in added_frames[vid]:
+                if abs(f_ms - added_ms) < overlap_threshold:
+                    is_overlap = True
                     break
-                results.append({
-                    "rank": len(results) + 1, 
-                    "video_id": res["video_id"],
-                    "frame_ms": f["frame_ms"],
-                })
-        else:
-            if len(results) >= max_preds:
-                break
+                    
+        if not is_overlap:
+            if vid not in added_frames:
+                added_frames[vid] = []
+            added_frames[vid].append(f_ms)
             results.append({
-                "rank": len(results) + 1, 
-                "video_id": res["video_id"],
-                "frame_ms": res["frame_ms"],
+                "rank": len(results) + 1,
+                "video_id": vid,
+                "frame_ms": f_ms,
             })
             
     return {"task_id": task["task_id"], "results": results}

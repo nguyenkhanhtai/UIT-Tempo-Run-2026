@@ -42,15 +42,16 @@ export VLMS=(
 export USE_SEQUENTIAL="true"
 export USE_AUDIO="false"
 export SCENE_SEGMENTER="regex"
-export OBJECT_SEGMENTER="none"
+export OBJECT_SEGMENTER="scenegraph"
 export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
 export LM_CACHE="false"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
-export DISCOUNT_FACTOR="0.7"
+export DISCOUNT_FACTOR="0.9"
 export NUM_EXPANSIONS=0
-export MAX_SEQ_GAP_MS=60000
+export MAX_SEQ_GAP_MS=15000
+export OVERLAP_THRESHOLD=0000
 
 echo "=========================================================="
 echo "Running Retrieval for all queries in $TASKS_FILE"
@@ -64,6 +65,7 @@ if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segme
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
 if [ -n "$NUM_EXPANSIONS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --num-expansions $NUM_EXPANSIONS"; fi
+if [ -n "$OVERLAP_THRESHOLD" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --overlap-threshold $OVERLAP_THRESHOLD"; fi
 
 PYTHONPATH=. uv run python pipeline/retrieve.py \
   --tasks $TASKS_FILE \
