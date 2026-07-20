@@ -126,7 +126,7 @@ class LMRouter:
         print(f"[lm_router] WARNING: Could not parse route for query, defaulting to Use_asr=False, Use_ocr=False.")
         return {"Use_asr": False, "asr_query": None, "Use_ocr": False, "ocr_query": None}
 
-    def route_batch(self, texts: list, batch_size: int = 4) -> list:
+    def route_batch(self, texts: list, batch_size: int = 32) -> list:
         """Route a batch of queries. Returns list of normalized route dicts."""
         results = [None] * len(texts)
         uncached_texts = []

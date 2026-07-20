@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ground Truth Annotation</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #bb86fc;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --success-color: #03dac6;
+            --danger-color: #cf6679;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 300px;
+            background-color: var(--surface-color);
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .task-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .task-item.active {
+            background-color: rgba(187, 134, 252, 0.1);
+            border-left-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #555;
+        }
+        .status-dot.annotated { background-color: var(--success-color); }
+        .status-dot.skipped { background-color: var(--danger-color); }
+
+        /* MAIN CONTENT */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .main-header {
+            padding: 20px 40px;
+            background-color: var(--surface-color);
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .controls button {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            border: 1px solid #444;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-left: 10px;
+            transition: all 0.2s;
+        }
+
+        .controls button:hover {
+            background-color: #2c2c2c;
+        }
+
+        .controls button.skip-btn {
+            background-color: rgba(207, 102, 121, 0.1);
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
+        .controls button.skip-btn:hover {
+            background-color: rgba(207, 102, 121, 0.2);
+        }
+
+        /* IMAGE VIEWER */
+        .image-viewer {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .image-container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            position: relative;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .image-container:hover {
+            border-color: var(--primary-color);
+            transform: scale(1.02);
+            cursor: pointer;
+        }
+
+        .image-container img {
+            width: 100%;
+            max-height: 70vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .image-info {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.1rem;
+        }
+        
+        .play-video-btn {
+            background-color: var(--primary-color);
+            color: #000;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+
+        .play-video-btn:hover {
+            opacity: 0.8;
+        }
+
+        .video-player-container {
+            width: 100%;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .video-player-container video {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        .rank-badge {
+            background-color: var(--primary-color);
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .video-id {
+            color: var(--text-secondary);
+        }
+
+        .loading {
+            padding: 50px;
+            text-align: center;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            width: 100%;
+        }
+
+        .click-hint {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(187, 134, 252, 0.9);
+            color: #000;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .image-container:hover .click-hint {
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span>Tasks</span>
+            <span id="progress-text" style="font-size: 0.9rem; color: var(--text-secondary)">--/--</span>
+        </div>
+        <div class="task-list" id="task-list">
+            <div class="loading">Loading tasks...</div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <div class="main-header">
+            <h2 id="task-title">Select a Task</h2>
+            <div class="controls">
+                <button onclick="prevTask()">⬅ Prev</button>
+                <button class="skip-btn" onclick="skipTask()">⏭ Skip (No GT)</button>
+                <button onclick="nextTask()">Next ➡</button>
+            </div>
+        </div>
+
+        <div class="image-viewer" id="image-viewer">
+            <div class="loading">Select a task from the sidebar to view images.</div>
+        </div>
+    </div>
+
+    <script>
+        let tasks = [];
+        let currentIndex = -1;
+
+        async function init() {
+            try {
+                const res = await fetch('/api/tasks');
+                tasks = await res.json();
+                
+                updateSidebar();
+                updateProgress();
+
+                // Auto-select first pending task
+                let firstPending = tasks.findIndex(t => t.status === 'pending');
+                if (firstPending >= 0) {
+                    selectTask(firstPending);
+                } else if (tasks.length > 0) {
+                    selectTask(0);
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('task-list').innerHTML = '<div class="loading">Error loading tasks</div>';
+            }
+        }
+
+        function updateSidebar() {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+            
+            tasks.forEach((task, index) => {
+                const div = document.createElement('div');
+                div.className = `task-item ${index === currentIndex ? 'active' : ''}`;
+                div.onclick = () => selectTask(index);
+                
+                div.innerHTML = `
+                    <span>Task ${task.id}</span>
+                    <div class="status-dot ${task.status}" title="${task.status}"></div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function updateProgress() {
+            const annotated = tasks.filter(t => t.status !== 'pending').length;
+            document.getElementById('progress-text').innerText = `${annotated}/${tasks.length}`;
+        }
+
+        async function selectTask(index) {
+            if (index < 0 || index >= tasks.length) return;
+            currentIndex = index;
+            updateSidebar(); // re-render to update active class
+            
+            const task = tasks[currentIndex];
+            document.getElementById('task-title').innerText = `Task: ${task.id}`;
+            document.getElementById('image-viewer').innerHTML = '<div class="loading">Loading images...</div>';
+
+            try {
+                const res = await fetch(`/api/tasks/${task.id}`);
+                const data = await res.json();
+                renderImages(data.images, task.id);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('image-viewer').innerHTML = '<div class="loading">Error loading images</div>';
+            }
+        }
+        
+        function playVideo(e, videoId, containerId) {
+            e.stopPropagation(); // Prevent marking as ground truth
+            const container = document.getElementById(containerId);
+            container.style.display = 'block';
+            if (!container.innerHTML) {
+                container.innerHTML = `<video src="/video/${videoId}" controls autoplay></video>`;
+            } else {
+                const video = container.querySelector('video');
+                if (video.paused) video.play();
+            }
+        }
+
+        function renderImages(images, taskId) {
+            const viewer = document.getElementById('image-viewer');
+            viewer.innerHTML = '';
+            
+            if (images.length === 0) {
+                viewer.innerHTML = '<div class="loading">No images found for this task.</div>';
+                return;
+            }
+
+            // Render list theo rank, ảnh to ở giữa
+            images.forEach((img, idx) => {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                container.onclick = (e) => {
+                    // Prevent submission if clicking on video player
+                    if (e.target.tagName.toLowerCase() === 'video' || e.target.closest('.video-player-container')) return;
+                    submitAnnotation(taskId, img);
+                };
+                
+                const vidContainerId = `vid-container-${taskId}-${idx}`;
+                
+                container.innerHTML = `
+                    <div class="click-hint">Mark as Ground Truth</div>
+                    <img src="${img.url}" alt="${img.video_id}" loading="lazy">
+                    <div class="image-info">
+                        <span class="rank-badge">Rank ${img.rank}</span>
+                        <div>
+                            <span class="video-id" style="margin-right: 15px;">${img.video_id}</span>
+                            <button class="play-video-btn" onclick="playVideo(event, '${img.video_id}', '${vidContainerId}')">▶ Play Video</button>
+                        </div>
+                    </div>
+                    <div class="video-player-container" id="${vidContainerId}"></div>
+                `;
+                viewer.appendChild(container);
+            });
+            
+            // Scroll to top
+            viewer.scrollTop = 0;
+        }
+
+        async function skipTask() {
+            if (currentIndex < 0 || currentIndex >= tasks.length) return;
+            const taskId = tasks[currentIndex].id;
+            await submitAnnotation(taskId, null);
+        }
+
+        async function submitAnnotation(taskId, img) {
+            try {
+                // img is null when skipped, otherwise it's the image object
+                await fetch('/api/annotate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId, annotation: img })
+                });
+                
+                // Update local state
+                tasks[currentIndex].status = img ? 'annotated' : 'skipped';
+                updateProgress();
+                
+                // Auto Next
+                nextTask();
+            } catch (err) {
+                console.error("Failed to save annotation", err);
+                alert("Failed to save annotation.");
+            }
+        }
+
+        function prevTask() {
+            if (currentIndex > 0) {
+                selectTask(currentIndex - 1);
+            }
+        }
+
+        function nextTask() {
+            if (currentIndex < tasks.length - 1) {
+                selectTask(currentIndex + 1);
+            }
+        }
+
+        // Initialize
+        init();
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                nextTask();
+            }
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevTask();
+            }
+            if (e.key === ' ' || e.key === 'Escape') {
+                // Prevent scrolling when pressing space
+                e.preventDefault();
+                skipTask();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -41,7 +41,7 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export SCENE_SEGMENTER="qwen"
+export SCENE_SEGMENTER="regex"
 export MAIN_QUERY_WEIGHT="1.0"
 export OBJECT_SEGMENTER="none"
 export SPLIT_QUERY="true"
@@ -49,7 +49,7 @@ export LM_CACHE="false"
 export USE_AUDIO="false"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
-export DISCOUNT_FACTOR="0.8"
+export DISCOUNT_FACTOR="0.7"
 
 echo "=========================================================="
 echo "Running Validation on file: $TASKS_FILE"

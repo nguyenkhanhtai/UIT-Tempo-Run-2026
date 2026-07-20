@@ -40,8 +40,8 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export USE_AUDIO="true"
-export SCENE_SEGMENTER="qwen"
+export USE_AUDIO="false"
+export SCENE_SEGMENTER="regex"
 export OBJECT_SEGMENTER="none"
 export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
@@ -49,6 +49,8 @@ export LM_CACHE="false"
 export SMOOTHING_WINDOW=1
 export SMOOTHING_SIGMA=1.0
 export DISCOUNT_FACTOR="0.7"
+export NUM_EXPANSIONS=0
+export MAX_SEQ_GAP_MS=60000
 
 echo "=========================================================="
 echo "Running Retrieval for all queries in $TASKS_FILE"
@@ -61,6 +63,7 @@ if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segment
 if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
+if [ -n "$NUM_EXPANSIONS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --num-expansions $NUM_EXPANSIONS"; fi
 
 PYTHONPATH=. uv run python pipeline/retrieve.py \
   --tasks $TASKS_FILE \

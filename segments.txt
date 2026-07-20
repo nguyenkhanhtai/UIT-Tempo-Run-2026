@@ -1,0 +1,36 @@
+Task ID: T0002
+Full Query: A person in a beige jacket and blue jeans walks through a dim stone corridor with a child in red. The scene shifts to a bustling square with a statue, then to a canal where a gondola glides under a large stone archway while people with umbrellas stand on the bridge above.
+  Scene 1: A person in a beige jacket and blue jeans walks through a dim stone corridor with a child in red
+  Scene 2: The scene shifts to a bustling square with a statue
+  Scene 3: A canal where a gondola glides under a large stone archway while people with umbrellas stand on the bridge above
+
+Task ID: T0005
+Full Query: A long dining table with white plates and a floral centerpiece sits against a wall of yellow fairy lights. The camera zooms in to reveal a silver "Three" table number, then focuses on white pillar candles and red berries. The scene cuts to a brick house with blue window frames, followed by two men in white shirts smiling at each other.
+  Scene 1: A long dining table with white plates and a floral centerpiece sits against a wall of yellow fairy lights
+  Scene 2: The camera zooms in to reveal a silver 'Three' table number
+  Scene 3: then focuses on white pillar candles and red berries
+  Scene 4: The scene cuts to a brick house with blue window frames
+  Scene 5: followed by two men in white shirts smiling at each other
+
+Task ID: T0006
+Full Query: A man in a black shirt and blue jeans smokes on a balcony, leaning against the railing with a sign reading "monika grožio salonas" behind him. The scene cuts to a woman in sunglasses, a black jacket, and patterned skirt walking outdoors past cars and buildings, her face partially obscured by bright light, before returning to the man on the balcony.
+  Scene 1: A man in a black shirt and blue jeans smokes on a balcony, leaning against the railing with a sign reading 'monika grožio salonas' behind him
+  Scene 2: The scene cuts to a woman in sunglasses, a black jacket, and patterned skirt walking outdoors past cars and buildings, her face partially obscured by bright light
+  Scene 3: before returning to the man on the balcony
+
+Task ID: T0011
+Full Query: A bright white light centered in a blue pixelated sphere dims, revealing a diamond-like facet at the base. The sphere then transforms into a solid dark silhouette of a graduation cap, backlit by intense blue rays emanating from above against a dark background, creating a glowing halo effect around the cap's edges.
+  Scene 1: A bright white light centered in a blue pixelated sphere dims
+  Scene 2: revealing a diamond-like facet at the base
+  Scene 3: The sphere then transforms into a solid dark silhouette of a graduation cap
+  Scene 4: backlit by intense blue rays emanating from above against a dark background
+  Scene 5: creating a glowing halo effect around the cap's edges
+
+Task ID: T0014
+Full Query: A man in a red hoodie holding a microphone sits between a woman in a patterned sweater and a man in a black jacket gesturing. The scene transitions to a stage performance where a woman in a white dress and apron holds a red cloth while a man in armor kneels before her, surrounded by an audience in period costumes.
+  Scene 1: A man in a red hoodie holding a microphone sits between a woman in a patterned sweater and a man in a black jacket gesturing
+  Scene 2: The scene transitions to a stage performance
+  Scene 3: A woman in a white dress and apron holds a red cloth
+  Scene 4: A man in armor kneels before her
+  Scene 5: Surrounded by an audience in period costumes
+

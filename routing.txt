@@ -1,0 +1,25 @@
+Task ID: T0002
+Full Query: A person in a beige jacket and blue jeans walks through a dim stone corridor with a child in red. The scene shifts to a bustling square with a statue, then to a canal where a gondola glides under a large stone archway while people with umbrellas stand on the bridge above.
+  Visual: ON (always)
+  Audio:  OFF
+
+Task ID: T0005
+Full Query: A long dining table with white plates and a floral centerpiece sits against a wall of yellow fairy lights. The camera zooms in to reveal a silver "Three" table number, then focuses on white pillar candles and red berries. The scene cuts to a brick house with blue window frames, followed by two men in white shirts smiling at each other.
+  Visual: ON (always)
+  Audio:  OFF
+
+Task ID: T0006
+Full Query: A man in a black shirt and blue jeans smokes on a balcony, leaning against the railing with a sign reading "monika grožio salonas" behind him. The scene cuts to a woman in sunglasses, a black jacket, and patterned skirt walking outdoors past cars and buildings, her face partially obscured by bright light, before returning to the man on the balcony.
+  Visual: ON (always)
+  Audio:  OFF
+
+Task ID: T0011
+Full Query: A bright white light centered in a blue pixelated sphere dims, revealing a diamond-like facet at the base. The sphere then transforms into a solid dark silhouette of a graduation cap, backlit by intense blue rays emanating from above against a dark background, creating a glowing halo effect around the cap's edges.
+  Visual: ON (always)
+  Audio:  OFF
+
+Task ID: T0014
+Full Query: A man in a red hoodie holding a microphone sits between a woman in a patterned sweater and a man in a black jacket gesturing. The scene transitions to a stage performance where a woman in a white dress and apron holds a red cloth while a man in armor kneels before her, surrounded by an audience in period costumes.
+  Visual: ON (always)
+  Audio:  OFF
+

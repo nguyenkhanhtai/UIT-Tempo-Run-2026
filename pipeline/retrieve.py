@@ -29,7 +29,7 @@ from retrieval.loader import load_index
 from retrieval.temporal import smooth_features
 from retrieval.parser import parse_queries
 from retrieval.scorer import compute_similarity, aggregate_scores
-from retrieval.postprocess import apply_clustering
+from retrieval.postprocess import apply_reranking
 from models.factory import get_embedding_model
 
 def route_asr_queries(tasks, engine_name="qwen"):
@@ -96,8 +96,15 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
     all_models_idx = []
     
     first_vids, first_ts, first_metadata, first_emb = None, None, None, None
+    first_clip_model_name = None
     
-    for vlm_str in args.vlms:
+    # Flatten expanded queries
+    expanded_queries_flat = []
+    for t in tasks:
+        expanded_queries_flat.extend(t.get("expanded_queries", [t["description"]] * 5))
+    expanded_Q_embs = None
+
+    for idx_vlm, vlm_str in enumerate(args.vlms):
         model_name, pretrained = vlm_str.split(",")
         model_safe = model_name.replace("/", "_")
         pre_safe = pretrained.replace("/", "_") if pretrained else "none"
@@ -123,6 +130,12 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
         
+        # Encode Expanded Queries ONLY for the first model
+        if idx_vlm == 0:
+            print(f"[retrieve] Encoding expanded queries with {vlm_str}...")
+            Q_exp = clip.encode_texts(expanded_queries_flat)
+            expanded_Q_embs = torch.from_numpy(Q_exp).to(dev).float()
+            
         # Free up RAM/VRAM
         del clip
         import gc
@@ -143,7 +156,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         task_mapping, top_idx, top_val, tasks, first_vids, first_ts, first_emb, first_metadata, args.use_sequential
     )
     
-    return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K
+    return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs
 
 def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first_vids, first_ts, first_metadata, dev, N, K):
     if not audio_queries:
@@ -190,18 +203,23 @@ def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first
 
     return all_candidates_audio
 
-def fuse_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio):
+def rerank_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio, first_vids, first_ts, first_emb, expanded_Q_embs):
     if all_candidates_audio is not None:
         print("[retrieve] Fusing Visual and ASR Audio candidates...")
         all_candidates_final = rrf_fuse(all_candidates_visual, all_candidates_audio, k=60)
     else:
         all_candidates_final = all_candidates_visual
 
-    print("[retrieve] Postprocessing and Clustering...")
+    print("[retrieve] Postprocessing and Reranking with Query Expansion...")
+    from pipeline.retrieval.postprocess import apply_reranking
+    
+    # Pre-compute embedding lookup table for fast access
+    print("[retrieve] Building embedding lookup table...")
+    emb_lookup = {(v, t): i for i, (v, t) in enumerate(zip(first_vids, first_ts))}
+    
     preds = []
-        
-    for task, candidates in all_candidates_final:
-        res = apply_clustering(task, candidates, args.top_videos)
+    for ti, (task, candidates) in enumerate(all_candidates_final):
+        res = apply_reranking(ti, task, candidates, args.top_videos, emb_lookup, first_emb, expanded_Q_embs, dev=args.device)
         preds.append(res)
         
     return preds, all_candidates_final
@@ -287,15 +305,24 @@ def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
             route = task.get("route", {})
             f.write(f"Task ID: {task.get('task_id', '?')}\n")
             f.write(f"Full Query: {task.get('description', '')}\n")
+            if "expanded_queries" in task:
+                f.write(f"Expanded Queries:\n")
+                for eq in task["expanded_queries"]:
+                    f.write(f"  - {eq}\n")
             if route:
                 use_asr = route.get("Use_asr", False) and bool(route.get("asr_query"))
+                use_ocr = route.get("Use_ocr", False) and bool(route.get("ocr_query"))
                 f.write(f"  Visual: ON (always)\n")
                 f.write(f"  ASR:    {'ON' if use_asr else 'OFF'}\n")
                 f.write(f"  ASR query: {route.get('asr_query') or 'NULL'}\n")
+                f.write(f"  OCR:    {'ON' if use_ocr else 'OFF'}\n")
+                f.write(f"  OCR query: {route.get('ocr_query') or 'NULL'}\n")
             else:
                 f.write("  Visual: ON (always)\n")
                 f.write("  ASR:    OFF (no router - ASR not used)\n")
                 f.write("  ASR query: NULL\n")
+                f.write("  OCR:    OFF (no router - OCR not used)\n")
+                f.write("  OCR query: NULL\n")
             f.write("\n")
     
     print(f"[debug] wrote segments.txt and routing.txt to {out_dir}", flush=True)
@@ -308,9 +335,26 @@ def run_retrieval(args):
     all_queries, task_mapping, task_segments = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
     print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
         
+    print("[retrieve] Generating Expanded Queries for Reranking...")
+    if args.num_expansions > 0:
+        try:
+            from pipeline.retrieval.routing.qe_expander import QueryExpander
+            qe = QueryExpander(engine_name="qwen", num_expansions=args.num_expansions)
+            # We expand the original task description
+            tasks_desc = [t["description"] for t in tasks]
+            expanded_queries_list = qe.expand_batch(tasks_desc)
+            qe.cleanup()
+        except Exception as e:
+            print(f"[retrieve] Warning: Could not run QueryExpander: {e}")
+            expanded_queries_list = [[t["description"]] * args.num_expansions for t in tasks]
+    else:
+        expanded_queries_list = [[] for _ in tasks]
+        
+    for ti, task in enumerate(tasks):
+        task["expanded_queries"] = expanded_queries_list[ti]
     # 1. Process Visual Modality
     visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
-    all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K = visual_res
+    all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs = visual_res
     
     # 2. Route ASR needs, then process Audio Modality (Optional)
     all_candidates_audio = None
@@ -325,13 +369,14 @@ def run_retrieval(args):
         if lm_router is not None and hasattr(lm_router, "cleanup"):
             lm_router.cleanup()
 
-    # 3. Fuse and Cluster
-    preds, all_candidates_final = fuse_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio)
+    # 3. Rerank and Cluster
+    preds, all_candidates_final = rerank_and_cluster(
+        args, tasks, all_candidates_visual, all_candidates_audio,
+        first_vids, first_ts, first_emb, expanded_Q_embs
+    )
     
-    # 4. Save Submission
+    # 4. Save results
     out_dir = save_submission(args, preds)
-    
-    # 5. Save Debug Info (segments + routing)
     if out_dir:
         save_debug_info(out_dir, tasks, task_segments, all_candidates_final)
 
@@ -361,6 +406,7 @@ def main():
     p.add_argument("--object-segmenter", type=str, default="regex", help="Segmenter engine for objects (regex, spacy, sat, scenegraph, none)")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
+    p.add_argument("--num-expansions", type=int, default=2, help="Number of queries to expand for reranking")
     
     args = p.parse_args()
     run_retrieval(args)
