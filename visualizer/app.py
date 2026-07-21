@@ -323,8 +323,9 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
                     total_mrr += 1.0 / rank
                     if rank == 1:
                         top_1_hits += 1
-            mrr = total_mrr / evaluated_count if evaluated_count > 0 else 0
+            mrr = total_mrr / len(preds) if len(preds) > 0 else 0
             
+
             cfg_params = {}
             bash_script = "# No config found"
             if os.path.exists(conf_file):

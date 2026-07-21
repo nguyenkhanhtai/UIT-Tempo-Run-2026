@@ -1,25 +1,450 @@
 Task ID: T0002
 Full Query: A person in a beige jacket and blue jeans walks through a dim stone corridor with a child in red. The scene shifts to a bustling square with a statue, then to a canal where a gondola glides under a large stone archway while people with umbrellas stand on the bridge above.
+Expanded Queries:
   Visual: ON (always)
-  Audio:  OFF
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
 
 Task ID: T0005
 Full Query: A long dining table with white plates and a floral centerpiece sits against a wall of yellow fairy lights. The camera zooms in to reveal a silver "Three" table number, then focuses on white pillar candles and red berries. The scene cuts to a brick house with blue window frames, followed by two men in white shirts smiling at each other.
+Expanded Queries:
   Visual: ON (always)
-  Audio:  OFF
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
 
 Task ID: T0006
 Full Query: A man in a black shirt and blue jeans smokes on a balcony, leaning against the railing with a sign reading "monika grožio salonas" behind him. The scene cuts to a woman in sunglasses, a black jacket, and patterned skirt walking outdoors past cars and buildings, her face partially obscured by bright light, before returning to the man on the balcony.
+Expanded Queries:
   Visual: ON (always)
-  Audio:  OFF
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
 
 Task ID: T0011
 Full Query: A bright white light centered in a blue pixelated sphere dims, revealing a diamond-like facet at the base. The sphere then transforms into a solid dark silhouette of a graduation cap, backlit by intense blue rays emanating from above against a dark background, creating a glowing halo effect around the cap's edges.
+Expanded Queries:
   Visual: ON (always)
-  Audio:  OFF
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
 
 Task ID: T0014
 Full Query: A man in a red hoodie holding a microphone sits between a woman in a patterned sweater and a man in a black jacket gesturing. The scene transitions to a stage performance where a woman in a white dress and apron holds a red cloth while a man in armor kneels before her, surrounded by an audience in period costumes.
+Expanded Queries:
   Visual: ON (always)
-  Audio:  OFF
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0017
+Full Query: A DJ in a blue shirt and cap performs at a white booth under dim lighting, with a large crowd raising hands. The camera cuts to close-ups of excited fans in black shirts: one with "CB" and a skull design, a woman with a white circular logo, and a man with "VEN" text, all capturing the moment on phones.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0018
+Full Query: An elderly woman with short reddish-brown hair, glasses, and a black cardigan over a blue shirt sits before a wooden dresser. The camera shifts to her side profile against a cream wall with a white shelf. She bends forward, obscuring her face, then straightens up smiling as the subtitle changes to "I was told I was slim" before she quickly exits the frame to the right.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0019
+Full Query: The clip begins with a blurred wall showing yellow and dark gray sections, followed by motion-blurred figures, one in a patterned shirt. Inside a subway car, a person in a black tank top with an arm tattoo sits beside someone holding a white plastic bag. The sequence concludes with a close-up of an open magazine displaying a building photo and a smiling face.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0021
+Full Query: A white hanger labeled "toni" in cursive, adorned with pink flowers and holding white lace fabric, appears against a dark background. The scene shifts to a man in a black suit with a boutonniere, standing near large windows with visible greenery. He speaks into a microphone, gesturing with his left hand to seated guests illuminated by natural light.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0025
+Full Query: A man in a red and black jacket with a "MY RACE SHOP" patch speaks, identified by on-screen text as "RICHARD MIGLIORI TEAM OWNER". He gestures with his right hand and smiles while standing before a white platform where three people stand near pink and yellow containers.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0027
+Full Query: A woman with brown hair and glasses, wearing a blue shirt, is centered against a vibrant orange background with soft bokeh lights. She speaks directly to the camera, tilting her head slightly mid-sentence. Her expression softens into a slight smile while maintaining eye contact, then settles into a neutral look with her mouth closed, all framed by the consistent warm, glowing backdrop.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0029
+Full Query: A man in a dark suit stands on a stage backed by a grid of small lights, holding a microphone. A drummer is visible behind him. The camera zooms from a wide shot to a close-up as the man looks down, then glances slightly to the side while continuing to hold the mic.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0030
+Full Query: A static title card displays the text "RICHARD PINHAS - OREN AMBARCHI" and "MAY 2014" in white font. The background consists of a repeating pattern of reddish-orange images featuring a person. The visual composition remains unchanged throughout the clip, with no camera movement or additional text appearing on screen.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0034
+Full Query: On a marble countertop, a glass bowl of egg whites sits beside a metal bowl initially holding four yolks. Hands crack an egg to add a fifth yolk, then pour sugar from a container into the metal bowl, mixing the granules with the bright yellow yolks.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0035
+Full Query: Women in black crop tops featuring green "W" and "GALS" text dance energetically inside a boxing ring. A man in a black t-shirt with a red graphic raises his fist triumphantly. Subsequently, a golden boxing glove trophy is displayed, held by a woman posing with a Polaroid camera box. Finally, a man in a patterned shirt lifts a small screen high above his head beside the trophy holder.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0039
+Full Query: A man in a dark hat and jacket stands on snow-covered ground at night, gazing upward at bare trees while holding a small object. The scene shifts indoors to a dimly lit space where a different man in a light coat with a fur collar bends near a staircase, walks away down a dark wood-paneled hallway, and finally sits on the stairs holding an item.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0050
+Full Query: A container ship named "RIO DE JANEIRO" appears with "Panama Canal, Panama" text, followed by close-ups of stacked containers branded OOCL, Hapag-Lloyd, and NYK Logistics. The scene shifts to the Miraflores Locks, showing a white building labeled "MIRAFLORES LOCKS PANAMA CANAL" and a locomotive, ending with a bird flying overhead.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0051
+Full Query: A group of five hikers, including a man carrying a child, walks a sunlit path in neutral outdoor gear. The view shifts to three hikers descending a shaded forest trail, then to a close-up of a mossy, irregular stone wall. Finally, a person in a white shirt and dark pants ascends a steep, rocky slope dotted with green vegetation under bright sunlight.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0054
+Full Query: Two climbers ascend a steep, snow-covered slope, connected by a rope. The lead climber wears a plaid shirt and dark pants, using a wooden pole for support, while the follower wears a white shirt and carries a green backpack. The TF1 logo remains visible in the top right corner throughout the ascent.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0057
+Full Query: A white surfboard with blue fins and "WIRE" and "AQUA" text lies on sand with people's shadows. A person in a black wetsuit paddles toward waves near mountains. The surfer catches a large wave, riding it across the ocean under a partly cloudy sky while maintaining balance on the board.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0062
+Full Query: A young woman in a pink lace top and lavender tulle skirt poses against a dark textured wall, then joins a man in a black suit and a boy in a vest for group photos before a brown geometric wood panel wall. The scene shifts to a table near illuminated "DULCI" letters, ending with two women embracing under purple party lighting.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0065
+Full Query: A woman with an updo and large hoop earrings wears a white cardigan over a black top against an orange background, labeled "Bianca Nygård." Next, a woman with long wavy hair appears in a black off-the-shoulder top against a blue background. Finally, a model in a black coat raises her arms as "Bianca Nygård SPRING 2012" text overlays the orange scene.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0067
+Full Query: Close-up shots of scattered purple and white flower petals with shallow depth of field, transitioning to a cake adorned with pink frosting roses and green leaves. The camera highlights intricate textures and delicate details against white frosting, bathed in a warm glow that emphasizes the floral decorations.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0077
+Full Query: An older man with white hair and glasses, wearing a grey sweater over a plaid shirt, speaks animatedly in a close-up. He pauses thoughtfully with closed lips before resuming his speech, maintaining an engaged expression against a blurred indoor background throughout the sequence.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0080
+Full Query: A smiling woman with dark hair and red lipstick poses closely with a man in a white shirt and tie against warm bokeh lights. The scene cuts to a woman in a black dress standing between two men in suits; she appears to speak or sing while they look on under the same ambient lighting.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0085
+Full Query: Two children play on white sand; one in a pink shirt bends over while the other sits in a black shirt with yellow text. The scene cuts to a person in a yellow life jacket standing in shallow water beside a longboard, with another individual visible further out in the ocean.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0086
+Full Query: Two hikers walk on a rocky hilltop under a partly cloudy sky; one wears a dark jacket with a green logo. A fisheye lens captures the rugged terrain before tilting down to moss-covered ground and scattered stones. A foot in a brown shoe and light pants steps onto the gravelly path, moving forward along the trail with distorted edges.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0089
+Full Query: A man in a black suit and shirt stands against a solid orange background, with "Just Certs" text in the top left corner. He gestures with his right hand, raises both hands slightly, points to himself, and holds his palms facing each other while speaking.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0093
+Full Query: A wide outdoor shot reveals a wall with graffiti on the left and a large green section on the right, set against tall buildings. The camera zooms into the green paint’s texture before a person in a sleeveless top and shorts appears, spraying orange lines. The view widens to show the emerging orange figure on the green wall, with surrounding urban structures and other graffiti visible in the background.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0114
+Full Query: A compilation features a young skateboarder performing tricks on concrete surfaces. Initially, he wears a white shirt and black pants, viewed from overhead. Later, he dons a white cap while executing a ramp trick with spectators nearby. Subsequent clips show him in a black shirt and beige pants mid-air, followed by a light blue shirt while landing a trick near another person.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0120
+Full Query: A guitarist in a plaid shirt plays near a window with blinds and a graffiti tapestry. The scene cuts to a smiling drummer in a black "Sickboy" t-shirt behind his kit against striped walls. Finally, band members, including one in sunglasses, clap near a doorway as the performance concludes.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0122
+Full Query: A snowboarder in black descends a sunny slope, passing a purple tube before grinding a blue rail labeled "Mayrhofner." The rider lands smoothly on the snow with a ski lift and rugged mountains visible in the background under a clear blue sky.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0130
+Full Query: A color photo shows a skateboarder in a red shirt and white knee pads with blue and yellow stripes in a concrete bowl, captioned “I still skate for fun,” Lipper, Winchester. Next, a “SkateBoarder” magazine cover features a skater in a blue shirt with headlines like “Chris Staple Interview” and “Skateboardmania.” Finally, a black-and-white photo depicts a skater holding a Santa Cruz board, captioned “Bulk flight, Marina.”
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0137
+Full Query: A crowded nightclub features red ceiling lights and a large green leaf projection on the right wall. The camera shakes, causing motion blur, then stabilizes to reveal a woman with curly hair and a man in a white face mask. It blurs again before refocusing on a woman holding a small black camera, with a balcony and white light beams visible in the background.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0139
+Full Query: The camera travels east along Bismarckstraße, displaying a blue bicycle lane on the left and parked cars on the right. It passes a yellow vehicle before reaching an intersection with a red-painted bike lane. A red car stops at the traffic lights as a pedestrian crosses, with the text "Bismarckstraße Richtung Osten - Befahrung Nov. '16" persistently overlaid at the bottom.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0145
+Full Query: A screen displays five horizontal rows of colored blocks with icons. The bottom text transitions from "Both available as a service.." to "..and to download and setup yourself," then "Already a big success in the Netherlands." Finally, a map of Europe overlays the blocks while the text reads "Now opening up to the rest of Europe."
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0148
+Full Query: A blonde woman and a man in a white shirt with a red tie stand before religious icons. A woman in an orange top walks through a sunlit doorway with children. The view shifts to a close-up of a brown robe with a decorative sash, then a blue patterned dress with a green hem. Finally, a baby lies on a white-clothed table while the woman in the blue dress stands beside it.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0149
+Full Query: A snowboarder in a black helmet and goggles is captured mid-air amidst a snow cloud, holding a selfie stick. The scene cuts to a person in white gloves adjusting black goggles in a bathroom with beige tiles and a wooden shelf. Finally, a snowboarder in a yellow jacket and black helmet rides down a snowy slope under a clear blue sky, holding a selfie stick.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0150
+Full Query: A stationary camera captures a sunlit dirt path flanked by vibrant pink bougainvillea on the left and a tall woven fence on the right. A person with short dark hair, wearing a light blue tank top and carrying a white bag, walks away from the camera along the path, heading toward a view of the blue ocean visible through the trees.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0151
+Full Query: A dark green car drives on a racetrack with "SEPANG" on the grandstand. It then races alongside a white car on curving asphalt, with "CIRCUIT" visible on the stands. The green car leads, closely followed by the white one, captured in a dynamic side view emphasizing their speed and proximity on the track.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0158
+Full Query: A guitarist in a plaid shirt performs on stage under shifting green, white, and purple lights. The camera angle adjusts slightly as he plays. Subsequently, a performer in a red outfit appears under blue and green lighting, holding a microphone or instrument. The scene concludes with this individual continuing the performance under predominantly green illumination.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0173
+Full Query: A first-person perspective captures a mountain bike ride along a winding dirt trail through a forest. Blue handlebars and the front fork are prominent in the foreground. Ahead, a cyclist wearing a yellow shirt navigates the path, surrounded by trees lining the sides of the trail.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0174
+Full Query: A climber in a red helmet, white long-sleeve shirt, and beige pants ascends a textured rock face, illuminated by a headlamp. They grip the stone with one hand while holding a tool in the other. The watermark "tvmountain" remains fixed in the bottom right corner across multiple upward climbing shots.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0175
+Full Query: A flock of birds flies against a cloudy gray sky. The text "SOUTH SUDAN" appears in bold black letters over this scene. The camera remains focused on the birds as they continue to fly across the overcast sky, scattered across the cloudy backdrop, before eventually flying away into the distance under the gray sky.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0178
+Full Query: A close-up shows a couple kissing in the water, the woman in a pink and orange bikini. The scene cuts to a wide shot of a crowded beach with sunbathers. Then, a man runs toward the ocean, followed by two men sprinting into crashing waves on the sandy shore, with hills visible in the background.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0179
+Full Query: A shirtless child in purple shorts plays near a red sprinkler spraying water on the ground. The child bends forward, stands facing away, then walks toward a brick wall. Finally, the child runs back toward the camera, blurring slightly, and runs past the active sprinkler with greenery visible in the background.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0181
+Full Query: Inside a grand circular hall with tiered arches, a TV monitor displays a live feed of the room. The camera then moves closer to a group gathered around a white structure marked with an orange square on the patterned floor, where participants engage in activities while others observe from the background.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0185
+Full Query: Close-ups capture a cyclist’s leg in black shorts and white sneakers with a red logo pedaling, followed by a spinning bicycle wheel. A woman in a floral top crouches to inspect the bike, while a detailed shot shows a hand adjusting the wheel spokes, highlighting the mechanical focus of the scene.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0186
+Full Query: A black-and-white documentary sequence opens with a static shot of a dilapidated building featuring two cylindrical towers, set against rolling hills and a cloudy sky. The scene then transitions to a rugged landscape characterized by stone walls, scattered vegetation, and distant hills under the same overcast sky, maintaining a consistent monochromatic aesthetic throughout the clip.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
+
+Task ID: T0189
+Full Query: A man in a gray t-shirt performs at a white Roland GAIA keyboard under red stage lighting. He alternates between singing into a microphone and leaning forward to adjust the synthesizer controls. A drummer is consistently visible in the background, while another band member in a black shirt appears briefly behind the keyboardist during the performance.
+Expanded Queries:
+  Visual: ON (always)
+  ASR:    OFF (no router - ASR not used)
+  ASR query: NULL
+  OCR:    OFF (no router - OCR not used)
+  OCR query: NULL
 

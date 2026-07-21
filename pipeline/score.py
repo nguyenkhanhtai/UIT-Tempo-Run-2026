@@ -109,26 +109,25 @@ def evaluate_submission(submission_path, labels_path="dataset/synthetic_eval_lab
             print(f"MISS (Not found in Top 10)")
 
     # 4. Print Results
-    if evaluated_tasks == 0:
-        print("No intersecting tasks found between GT and submission.")
+    total_tasks = len(tasks_data)
+    if total_tasks == 0:
+        print("Không có task nào trong submission.")
         return
-        
-    print(f"\nEvaluation Results for {evaluated_tasks} queries:")
-    print("="*50)
-    print(" STANDARD METRICS (Video ID match only):")
-    print("="*50)
-    print(f" Recall@1 : {recall_1 / evaluated_tasks * 100:.2f}%")
-    print(f" Recall@5 : {recall_5 / evaluated_tasks * 100:.2f}%")
-    print(f" Recall@10: {recall_10 / evaluated_tasks * 100:.2f}%")
-    print(f" MRR      : {mrr_sum / evaluated_tasks:.4f}")
+
+    print(f"\nEvaluation Results (trên TOÀN BỘ {total_tasks} queries trong submission):")
+    print(f"Số lượng query có Ground Truth để đối chiếu: {evaluated_tasks}")
+    print(f"----------------------------------------")
+    print(f" Theo luật Loose (Overlap):")
+    print(f" Recall@1 : {recall_1 / total_tasks * 100:.2f}%")
+    print(f" Recall@5 : {recall_5 / total_tasks * 100:.2f}%")
+    print(f" Recall@10: {recall_10 / total_tasks * 100:.2f}%")
+    print(f" MRR      : {mrr_sum / total_tasks:.4f}")
     
-    print("\n" + "="*50)
-    print(" STRICT METRICS (Video ID + Temporal match):")
-    print("="*50)
-    print(f" Strict R@1 : {strict_recall_1 / evaluated_tasks * 100:.2f}%")
-    print(f" Strict R@5 : {strict_recall_5 / evaluated_tasks * 100:.2f}%")
-    print(f" Strict R@10: {strict_recall_10 / evaluated_tasks * 100:.2f}%")
-    print(f" Strict MRR : {strict_mrr_sum / evaluated_tasks:.4f}")
+    print(f"\n Theo luật Strict (Chính xác Keyframe ID):")
+    print(f" Strict R@1 : {strict_recall_1 / total_tasks * 100:.2f}%")
+    print(f" Strict R@5 : {strict_recall_5 / total_tasks * 100:.2f}%")
+    print(f" Strict R@10: {strict_recall_10 / total_tasks * 100:.2f}%")
+    print(f" Strict MRR : {strict_mrr_sum / total_tasks:.4f}")
     print("="*50)
 
 

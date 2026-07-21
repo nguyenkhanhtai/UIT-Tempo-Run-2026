@@ -242,6 +242,8 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                             chosen_frame_ms = sequence_ms[1] if len(sequence_ms) > 1 else sequence_ms[0]
                         elif pos_mode == "best":
                             chosen_frame_ms = best_seq_ms
+                        elif pos_mode == "median":
+                            chosen_frame_ms = sequence_ms[len(sequence_ms) // 2]
                         else:
                             chosen_frame_ms = middle_ms
                             

@@ -159,4 +159,7 @@ def postprocess_pipeline(args, tasks, all_candidates_visual, all_candidates_audi
     from pipeline.retrieval.reranker.od_reranker import apply_od_reranking
     preds = apply_od_reranking(tasks, preds)
         
+    from pipeline.retrieval.reranker.vlm_rescorer import apply_vlm_rescoring
+    preds = apply_vlm_rescoring(tasks, preds)
+        
     return preds, all_candidates_final

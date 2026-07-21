@@ -46,8 +46,8 @@ export SCENE_SEGMENTER="regex"
 export OBJECT_SEGMENTER="none"
 export AGG_MODE="prod"
 export DP_MODE="plus"
-export POSITION_MODE="second" # options: "first", "second", "middle", "best"
-export MAX_PREDS_PER_VIDEO="2"
+export POSITION_MODE="second" # options: "first", "second", "middle", "best", "median"
+export MAX_PREDS_PER_VIDEO="10"
 export CLIP_TO_ZERO="true"
 export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
@@ -56,10 +56,15 @@ export SMOOTHING_WINDOW=0
 export SMOOTHING_SIGMA=1.0
 export DISCOUNT_FACTOR="0.8"
 export NUM_EXPANSIONS=0
-export MAX_SEQ_GAP_MS=15000
+export MAX_SEQ_GAP_MS=5000
 export OVERLAP_THRESHOLD=0000
 export USE_OD_RERANKING="false"
-export OD_RERANKING_WEIGHT="0.5"
+export OD_RERANKING_WEIGHT="0.3"
+
+export USE_VLM_RESCORING="false"
+export VLM_EVAL_MODE="judge"
+export RESCORE_RANK=1
+export VLM_MODEL="llava-hf/llava-next-video-7b-hf"
 
 echo "=========================================================="
 echo "Running Retrieval for all queries in $TASKS_FILE"

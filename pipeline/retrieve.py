@@ -447,6 +447,8 @@ def run_retrieval(args):
     for ti, task in enumerate(tasks):
         task["expanded_queries"] = expanded_queries_list[ti]
         task["overlap_threshold"] = args.overlap_threshold
+        task["segments"] = task_segments.get(ti, {})
+        
     # 1. Process Visual Modality
     visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
     all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs = visual_res

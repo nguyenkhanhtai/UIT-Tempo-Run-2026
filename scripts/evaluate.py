@@ -66,18 +66,19 @@ def evaluate(submission_file):
             total_mrr += 1.0 / rank
             if rank == 1:
                 top_1_hits += 1
-    if evaluated_count == 0:
-        print("Không có task nào có ground truth trong annotations.json.")
+    if len(preds) == 0:
+        print("Không có task nào trong submission.")
         return
         
-    mrr = total_mrr / evaluated_count
+    total_tasks = len(preds)
+    mrr = total_mrr / total_tasks
     
     print("================ KẾT QUẢ ==================")
-    print(f"Tổng số task trong submission: {len(preds)}")
-    print(f"Số lượng task có GT để đánh giá: {evaluated_count}")
-    print(f"Số task tìm đúng (Hits):     {hits} ({hits/evaluated_count*100:.2f}%)")
-    print(f"Số task đạt Top 1:           {top_1_hits} ({top_1_hits/evaluated_count*100:.2f}%)")
-    print(f"MRR (Mean Reciprocal Rank):  {mrr:.4f}")
+    print(f"Tổng số task trong submission: {total_tasks}")
+    print(f"Số lượng task có GT để đối chiếu: {evaluated_count}")
+    print(f"Số task tìm đúng (Hits):     {hits} (trên {total_tasks} task: {hits/total_tasks*100:.2f}%)")
+    print(f"Số task đạt Top 1:           {top_1_hits} (trên {total_tasks} task: {top_1_hits/total_tasks*100:.2f}%)")
+    print(f"MRR (trên TOÀN BỘ {total_tasks} task): {mrr:.4f}")
     
     config_file = os.path.join(os.path.dirname(submission_file), "config.json")
     if os.path.exists(config_file):
