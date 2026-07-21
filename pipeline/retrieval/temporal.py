@@ -5,10 +5,14 @@ to reduce noise and provide contextual features.
 import numpy as np
 
 def smooth_features(emb, vids, smoothing_window=3, sigma=1.0):
+    if smoothing_window <= 1:
+        print("[retrieve] Smoothing disabled (window <= 1).", flush=True)
+        return emb
+        
     print(f"[retrieve] Smoothing features temporally (Gaussian, window={smoothing_window}, sigma={sigma})...", flush=True)
-    
-    if smoothing_window < 1 or smoothing_window % 2 == 0:
-        raise ValueError("smoothing_window must be a positive odd integer")
+        
+    if smoothing_window % 2 == 0:
+        raise ValueError("smoothing_window must be an odd integer")
         
     radius = smoothing_window // 2
     

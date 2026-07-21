@@ -39,7 +39,7 @@ def evaluate(submission_file):
     evaluated_count = 0
     
     for task_id, gt_video in annotations.items():
-        if not gt_video:
+        if not gt_video or task_id not in preds:
             continue
             
         evaluated_count += 1
@@ -78,6 +78,26 @@ def evaluate(submission_file):
     print(f"Số task tìm đúng (Hits):     {hits} ({hits/evaluated_count*100:.2f}%)")
     print(f"Số task đạt Top 1:           {top_1_hits} ({top_1_hits/evaluated_count*100:.2f}%)")
     print(f"MRR (Mean Reciprocal Rank):  {mrr:.4f}")
+    
+    config_file = os.path.join(os.path.dirname(submission_file), "config.json")
+    if os.path.exists(config_file):
+        print("-------------------------------------------")
+        print("Thông số đã dùng (Config):")
+        try:
+            with open(config_file, "r") as fc:
+                cfg = json.load(fc)
+                args_dict = cfg.get("args", {})
+                env_params = cfg.get("env_params", {})
+                print(f"  - USE_SEQUENTIAL:   {args_dict.get('use_sequential', False)}")
+                print(f"  - USE_AUDIO:        {args_dict.get('use_audio', False)}")
+                print(f"  - SCENE_SEGMENTER:  {args_dict.get('scene_segmenter', 'none')}")
+                print(f"  - OBJECT_SEGMENTER: {args_dict.get('object_segmenter', 'none')}")
+                print(f"  - NUM_EXPANSIONS:   {args_dict.get('num_expansions', 0)}")
+                print(f"  - SMOOTHING_WINDOW: {args_dict.get('smoothing_window', 0)}")
+                print(f"  - OVERLAP_THRESH:   {args_dict.get('overlap_threshold', 0)}")
+                print(f"  - AGG_MODE:         {env_params.get('AGG_MODE', 'mean')}")
+        except Exception as e:
+            print("  (Lỗi khi đọc config.json)")
     print("===========================================")
 
 if __name__ == "__main__":

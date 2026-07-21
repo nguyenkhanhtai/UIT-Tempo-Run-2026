@@ -62,34 +62,6 @@ def build_asr_queries(tasks, routes):
 
     return audio_queries, audio_task_mapping
 
-def rrf_fuse(candidates1, candidates2=None, k=60):
-    fused_tasks = []
-    candidates2 = candidates2 or [(task, []) for task, _ in candidates1]
-
-    for (task, cands1), (_, cands2) in zip(candidates1, candidates2):
-        scores = {}
-        info = {}
-        route = task.get("route", {"Use_asr": False, "asr_query": None})
-
-        # ALWAYS ENFORCE VISUAL = TRUE to avoid catastrophic recall drop
-        for rank, cand in enumerate(cands1):
-            vid = cand["video_id"]
-            scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
-            info[vid] = cand
-
-        if route.get("Use_asr", False) and route.get("asr_query"):
-            for rank, cand in enumerate(cands2):
-                vid = cand["video_id"]
-                scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
-                if vid not in info:
-                    info[vid] = cand
-
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        for vid, sc in sorted_scores:
-            info[vid]["sim"] = sc
-        fused = [info[vid] for vid, sc in sorted_scores]
-        fused_tasks.append((task, fused))
-    return fused_tasks
 
 def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
     all_models_Q = []
@@ -131,7 +103,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
         
         # Encode Expanded Queries ONLY for the first model
-        if idx_vlm == 0:
+        if idx_vlm == 0 and expanded_queries_flat:
             print(f"[retrieve] Encoding expanded queries with {vlm_str}...")
             Q_exp = clip.encode_texts(expanded_queries_flat)
             expanded_Q_embs = torch.from_numpy(Q_exp).to(dev).float()
@@ -203,30 +175,21 @@ def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first
 
     return all_candidates_audio
 
-def rerank_and_cluster(args, tasks, all_candidates_visual, all_candidates_audio, first_vids, first_ts, first_emb, expanded_Q_embs):
-    if all_candidates_audio is not None:
-        print("[retrieve] Fusing Visual and ASR Audio candidates...")
-        all_candidates_final = rrf_fuse(all_candidates_visual, all_candidates_audio, k=60)
-    else:
-        all_candidates_final = all_candidates_visual
 
-    print("[retrieve] Postprocessing and Reranking with Query Expansion...")
-    from pipeline.retrieval.postprocess import apply_reranking
-    
-    # Pre-compute embedding lookup table for fast access
-    print("[retrieve] Building embedding lookup table...")
-    emb_lookup = {(v, t): i for i, (v, t) in enumerate(zip(first_vids, first_ts))}
-    
-    preds = []
-    for ti, (task, candidates) in enumerate(all_candidates_final):
-        res = apply_reranking(ti, task, candidates, args.top_videos, emb_lookup, first_emb, expanded_Q_embs, dev=args.device)
-        preds.append(res)
-        
-    return preds, all_candidates_final
 
 def save_submission(args, preds):
     """Save submission.json and config.json; return the submission directory (or None)."""
-    sub = {"predictions": preds}
+    # Clean up auxiliary fields before saving to avoid format issues
+    clean_preds = []
+    for pred in preds:
+        clean_results = []
+        for c in pred.get("results", []):
+            # Keep rank, video_id and frame_ms for the final submission
+            clean_c = {"rank": c.get("rank"), "video_id": c.get("video_id"), "frame_ms": c.get("frame_ms")}
+            clean_results.append(clean_c)
+        clean_preds.append({"task_id": pred["task_id"], "results": clean_results})
+        
+    sub = {"predictions": clean_preds}
     out_path = args.out
     out_dir = None
     
@@ -257,7 +220,13 @@ def save_submission(args, preds):
             "SPLIT_QUERY": os.environ.get("SPLIT_QUERY"),
             "MAX_SEQ_GAP_MS": os.environ.get("MAX_SEQ_GAP_MS"),
             "DISCOUNT_FACTOR": os.environ.get("DISCOUNT_FACTOR"),
-            "AGG_MODE": os.environ.get("AGG_MODE")
+            "AGG_MODE": os.environ.get("AGG_MODE"),
+            "DP_MODE": os.environ.get("DP_MODE"),
+            "POSITION_MODE": os.environ.get("POSITION_MODE"),
+            "MAX_PREDS_PER_VIDEO": os.environ.get("MAX_PREDS_PER_VIDEO"),
+            "OVERLAP_THRESHOLD": os.environ.get("OVERLAP_THRESHOLD"),
+            "USE_OD_RERANKING": os.environ.get("USE_OD_RERANKING"),
+            "OD_RERANKING_WEIGHT": os.environ.get("OD_RERANKING_WEIGHT")
         }
     }
     
@@ -272,10 +241,133 @@ def save_submission(args, preds):
     zip_path = os.path.join(out_dir, "submission.zip")
     with zipfile.ZipFile(zip_path, 'w') as zf:
         zf.write(out_path, arcname="submission.json")
-        zf.write(config_path, arcname="config.json")
     print(f"[done] wrote {out_path}, {config_path}, {zip_path} ({len(preds)} tasks)", flush=True)
     
     return out_dir
+
+def generate_figures(out_dir, preds, tasks):
+    import os
+    import numpy as np
+    import glob
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        from pipeline.utils.visualize import wrap_text, get_text_size
+    except ImportError:
+        def get_text_size(text, font, draw):
+            if hasattr(draw, "textbbox"):
+                bbox = draw.textbbox((0, 0), text, font=font)
+                return bbox[2] - bbox[0], bbox[3] - bbox[1]
+            elif hasattr(font, "getsize"):
+                return font.getsize(text)
+            else:
+                return len(text) * 6, 12
+
+        def wrap_text(text, font, max_width, draw):
+            words = text.split()
+            lines = []
+            curr_line = []
+            for word in words:
+                curr_line.append(word)
+                line_str = " ".join(curr_line)
+                w, _ = get_text_size(line_str, font, draw)
+                if w > max_width and len(curr_line) > 1:
+                    curr_line.pop()
+                    lines.append(" ".join(curr_line))
+                    curr_line = [word]
+            if curr_line:
+                lines.append(" ".join(curr_line))
+            return lines
+
+    
+    kf_dir = os.environ.get("KF_DIR", "keyframes/fps/1")
+    fig_dir = os.path.join(out_dir, "figures", "task")
+    os.makedirs(fig_dir, exist_ok=True)
+    
+    def get_keyframe_path(video_id, frame_ms):
+        vdir = os.path.join(kf_dir, str(video_id))
+        ts_file = os.path.join(vdir, "ts_ms.npy")
+        if not os.path.exists(ts_file):
+            return None
+        try:
+            ts = np.load(ts_file)
+            idx = np.argmin(np.abs(ts - frame_ms))
+            files = sorted(glob.glob(os.path.join(vdir, "k_*.jpg")))
+            if idx < len(files):
+                return files[idx]
+        except Exception:
+            pass
+        return None
+
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 24)
+    except IOError:
+        try:
+            font = ImageFont.truetype("arial.ttf", 24)
+        except IOError:
+            font = ImageFont.load_default()
+            
+    temp_img = Image.new("RGB", (1, 1))
+    temp_draw = ImageDraw.Draw(temp_img)
+    _, line_height = get_text_size("A", font, temp_draw)
+    line_height = max(line_height, 20)
+    
+    task_map = {str(t.get("task_id")): t.get("description", "") for t in tasks}
+
+    def overlay_text(img, full_text):
+        padding = 20
+        max_text_width = img.width - 2 * padding
+        lines = []
+        for text_line in full_text.split('\n'):
+            if text_line.strip() == "":
+                lines.append("")
+            else:
+                lines.extend(wrap_text(text_line, font, max_text_width, temp_draw))
+        text_height = len(lines) * int(line_height * 1.5) + 2 * padding
+        new_img = Image.new("RGB", (img.width, img.height + text_height), "white")
+        draw = ImageDraw.Draw(new_img)
+        y = padding
+        for line in lines:
+            draw.text((padding, y), line, font=font, fill="black")
+            y += int(line_height * 1.5)
+        new_img.paste(img, (0, text_height))
+        return new_img
+
+    for pred in preds:
+        task_id = pred.get("task_id")
+        results = pred.get("results", [])
+        if not results:
+            continue
+            
+        for rank_idx, res in enumerate(results[:10]):
+            rank = rank_idx + 1
+            vid = res.get("video_id")
+            first_ms = res.get("start_ms", res.get("frame_ms"))
+            chosen_ms = res.get("frame_ms")
+            
+            task_dir = os.path.join(fig_dir, str(task_id))
+            os.makedirs(task_dir, exist_ok=True)
+            
+            desc = task_map.get(str(task_id), "")
+            
+            p1 = get_keyframe_path(vid, first_ms)
+            if p1:
+                try:
+                    img1 = Image.open(p1).convert("RGB")
+                    text1 = f"Rank: {rank} | Type: FIRST FRAME\nVideo: {vid} | Time: {first_ms}ms\n\nInstruction: {desc}"
+                    img1 = overlay_text(img1, text1)
+                    img1.save(os.path.join(task_dir, f"rank{rank}_first_frame.jpg"))
+                except Exception:
+                    pass
+                    
+            p2 = get_keyframe_path(vid, chosen_ms)
+            if p2:
+                try:
+                    img2 = Image.open(p2).convert("RGB")
+                    text2 = f"Rank: {rank} | Type: CHOSEN FRAME\nVideo: {vid} | Time: {chosen_ms}ms\n\nInstruction: {desc}"
+                    img2 = overlay_text(img2, text2)
+                    img2.save(os.path.join(task_dir, f"rank{rank}_chosen_frame.jpg"))
+                except Exception:
+                    pass
 
 def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
     """Write segments.txt and routing.txt into the submission folder."""
@@ -329,14 +421,16 @@ def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
 
 def run_retrieval(args):
     tasks = [json.loads(l) for l in open(args.tasks)]
+    if args.n is not None:
+        tasks = tasks[:args.n]
     dev = args.device
     
     print(f"[tasks] {len(tasks)}", flush=True)
     all_queries, task_mapping, task_segments = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
     print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
         
-    print("[retrieve] Generating Expanded Queries for Reranking...")
     if args.num_expansions > 0:
+        print("[retrieve] Generating Expanded Queries for Reranking...")
         try:
             from pipeline.retrieval.routing.qe_expander import QueryExpander
             qe = QueryExpander(engine_name="qwen", num_expansions=args.num_expansions)
@@ -370,8 +464,9 @@ def run_retrieval(args):
         if lm_router is not None and hasattr(lm_router, "cleanup"):
             lm_router.cleanup()
 
-    # 3. Rerank and Cluster
-    preds, all_candidates_final = rerank_and_cluster(
+    # 3. Postprocess Pipeline
+    from pipeline.retrieval.postprocess import postprocess_pipeline
+    preds, all_candidates_final = postprocess_pipeline(
         args, tasks, all_candidates_visual, all_candidates_audio,
         first_vids, first_ts, first_emb, expanded_Q_embs
     )
@@ -380,6 +475,8 @@ def run_retrieval(args):
     out_dir = save_submission(args, preds)
     if out_dir:
         save_debug_info(out_dir, tasks, task_segments, all_candidates_final)
+        print("[debug] Generating task figures (first_frame, chosen_frame)...", flush=True)
+        generate_figures(out_dir, preds, tasks)
 
     # Return data for decorators/analysis if needed
     return tasks, task_mapping, first_vids, first_ts, first_metadata, all_queries, all_candidates_final
@@ -391,6 +488,7 @@ def main():
     p.add_argument("--tasks", required=True, help="a round's task file, e.g. public_round_tasks.jsonl")
     p.add_argument("--out", required=True, help="submission.json path")
     p.add_argument("--device", default="cuda:0")
+    p.add_argument("--n", type=int, default=None, help="Limit number of tasks")
     p.add_argument("--vlms", nargs="+", required=True, help="List of model,pretrained pairs e.g. ViT-B-32,laion2b_s34b_b79k")
     p.add_argument("--precision", default=None)
     p.add_argument("--top-videos", type=int, default=10)

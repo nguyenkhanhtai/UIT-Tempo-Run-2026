@@ -58,54 +58,105 @@ def apply_reranking(ti, task, candidates, default_top_videos, emb_lookup, first_
                 
             candidates = sorted(valid_cands, key=lambda x: x["sim"], reverse=True)
             
-    # Flatten all candidates and their frames into a single pool
-    all_frames_flat = []
-    for c in candidates:
-        if "all_frames" in c and len(c["all_frames"]) > 0:
-            for f in c["all_frames"]:
-                all_frames_flat.append({
-                    "video_id": c["video_id"],
-                    "frame_ms": f["frame_ms"],
-                    "sim": float(f["sim"])
-                })
-        else:
-            all_frames_flat.append({
-                "video_id": c["video_id"],
-                "frame_ms": c["frame_ms"],
-                "sim": float(c["sim"])
-            })
-            
-    # Sort all frames descending by sim
-    all_frames_flat.sort(key=lambda x: x["sim"], reverse=True)
+    # Sort candidates descending by sim
+    candidates.sort(key=lambda x: x["sim"], reverse=True)
     
     results = []
-    # Define an overlap threshold in milliseconds
-    overlap_threshold = task.get("overlap_threshold", 5000)
-    added_frames = {}  # video_id -> list of selected frame_ms
+    added_intervals = {}  # video_id -> list of [start_ms, end_ms]
     
-    for f in all_frames_flat:
+    for c in candidates:
         if len(results) >= max_preds:
             break
             
-        vid = f["video_id"]
-        f_ms = f["frame_ms"]
+        vid = c["video_id"]
         
+        # Determine sequence interval
+        if "sequence_ms" in c and len(c["sequence_ms"]) > 0:
+            c_start = c["sequence_ms"][0]
+            c_end = c["sequence_ms"][-1]
+            if c_start > c_end:
+                c_start, c_end = c_end, c_start
+        else:
+            c_start = c["frame_ms"]
+            c_end = c["frame_ms"]
+            
         # Check overlap
         is_overlap = False
-        if vid in added_frames:
-            for added_ms in added_frames[vid]:
-                if abs(f_ms - added_ms) < overlap_threshold:
+        if vid in added_intervals:
+            for acc_start, acc_end in added_intervals[vid]:
+                if max(c_start, acc_start) <= min(c_end, acc_end):
                     is_overlap = True
                     break
                     
         if not is_overlap:
-            if vid not in added_frames:
-                added_frames[vid] = []
-            added_frames[vid].append(f_ms)
-            results.append({
+            if vid not in added_intervals:
+                added_intervals[vid] = []
+            added_intervals[vid].append([c_start, c_end])
+            
+            res_dict = {
                 "rank": len(results) + 1,
                 "video_id": vid,
-                "frame_ms": f_ms,
-            })
+                "frame_ms": c["frame_ms"],
+                "start_ms": c_start,
+                "end_ms": c_end
+            }
+            if "best_score_ms" in c:
+                res_dict["best_score_ms"] = c["best_score_ms"]
+            if "best_score_sec" in c:
+                res_dict["best_score_sec"] = c["best_score_sec"]
+                
+            results.append(res_dict)
             
     return {"task_id": task["task_id"], "results": results}
+
+def rrf_fuse(candidates1, candidates2=None, k=60):
+    fused_tasks = []
+    candidates2 = candidates2 or [(task, []) for task, _ in candidates1]
+
+    for (task, cands1), (_, cands2) in zip(candidates1, candidates2):
+        scores = {}
+        info = {}
+        route = task.get("route", {"Use_asr": False, "asr_query": None})
+
+        # ALWAYS ENFORCE VISUAL = TRUE to avoid catastrophic recall drop
+        for rank, cand in enumerate(cands1):
+            vid = cand["video_id"]
+            scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
+            info[vid] = cand
+
+        if route.get("Use_asr", False) and route.get("asr_query"):
+            for rank, cand in enumerate(cands2):
+                vid = cand["video_id"]
+                scores[vid] = scores.get(vid, 0) + 1.0 / (k + rank)
+                if vid not in info:
+                    info[vid] = cand
+
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        for vid, sc in sorted_scores:
+            info[vid]["sim"] = sc
+        fused = [info[vid] for vid, sc in sorted_scores]
+        fused_tasks.append((task, fused))
+    return fused_tasks
+
+def postprocess_pipeline(args, tasks, all_candidates_visual, all_candidates_audio, first_vids, first_ts, first_emb, expanded_Q_embs):
+    if all_candidates_audio is not None:
+        print("[retrieve] Fusing Visual and ASR Audio candidates...")
+        all_candidates_final = rrf_fuse(all_candidates_visual, all_candidates_audio, k=60)
+    else:
+        all_candidates_final = all_candidates_visual
+
+    print("[retrieve] Postprocessing and Reranking with Query Expansion...")
+    
+    # Pre-compute embedding lookup table for fast access
+    print("[retrieve] Building embedding lookup table...")
+    emb_lookup = {(v, t): i for i, (v, t) in enumerate(zip(first_vids, first_ts))}
+    
+    preds = []
+    for ti, (task, candidates) in enumerate(all_candidates_final):
+        res = apply_reranking(ti, task, candidates, args.top_videos, emb_lookup, first_emb, expanded_Q_embs, dev=args.device)
+        preds.append(res)
+        
+    from pipeline.retrieval.reranker.od_reranker import apply_od_reranking
+    preds = apply_od_reranking(tasks, preds)
+        
+    return preds, all_candidates_final

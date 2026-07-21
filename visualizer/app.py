@@ -1,6 +1,9 @@
 import os
 import json
 import urllib.parse
+import glob
+import numpy as np
+from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 PORT = 5000
@@ -35,6 +38,25 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
             self.handle_get_tasks()
             return
             
+        if self.path == '/api/submissions':
+            self.handle_get_submissions()
+            return
+            
+        if self.path.startswith('/api/submissions/'):
+            sub_id = self.path.split('/')[-1]
+            self.handle_get_submission_detail(sub_id)
+            return
+            
+        if self.path.startswith('/api/frame/'):
+            parts = self.path.split('/')
+            if len(parts) >= 5:
+                video_id = parts[3]
+                frame_ms = parts[4]
+                self.handle_get_frame(video_id, frame_ms)
+            else:
+                self.send_error(400, "Bad Request")
+            return
+
         if self.path.startswith('/api/tasks/'):
             task_id = self.path.split('/')[-1]
             self.handle_get_task_images(task_id)
@@ -171,9 +193,51 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
             task_list.append({"id": t, "status": status})
             
         self.send_response(200)
-        self.send_header("Content-type", "application/json")
+        self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps(task_list).encode('utf-8'))
+        self.wfile.write(json.dumps(task_list).encode())
+
+    def handle_get_submission_detail(self, sub_id):
+        sub_file = os.path.abspath(os.path.join(BASE_DIR, "..", "submission", sub_id, "submission.json"))
+        if not os.path.exists(sub_file):
+            self.send_error(404, "Submission not found")
+            return
+        try:
+            with open(sub_file, "r") as f:
+                data = json.load(f)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+        except Exception as e:
+            self.send_error(500, f"Error reading submission: {e}")
+
+    def handle_get_frame(self, vid, frame_ms):
+        kf_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "keyframes", "fps", "1"))
+        vdir = Path(kf_dir) / vid
+        ts_path = vdir / "ts_ms.npy"
+        
+        if not ts_path.exists():
+            self.send_error(404, "Frame index not found")
+            return
+            
+        try:
+            ts = np.load(ts_path)
+            idx = np.argmin(np.abs(ts - float(frame_ms)))
+            k_filename = f"k_{idx + 1:05d}.jpg"
+            img_path = vdir / k_filename
+            
+            if img_path.exists():
+                self.send_response(200)
+                self.send_header("Content-type", "image/jpeg")
+                self.end_headers()
+                with open(img_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "Image file not found")
+        except Exception as e:
+            print(e)
+            self.send_error(500, "Internal Server Error")
 
     def handle_get_task_images(self, task_id):
         task_dir = os.path.join(FIGURES_DIR, task_id)
@@ -196,10 +260,121 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
                 })
                 
         images.sort(key=lambda x: x["rank"])
+        annotations = load_annotations()
+        gt_video = annotations.get(task_id, None)
+        
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"task_id": task_id, "images": images}).encode('utf-8'))
+        self.wfile.write(json.dumps({
+            "task_id": task_id, 
+            "gt_video": gt_video,
+            "images": images
+        }).encode('utf-8'))
+
+    def handle_get_submissions(self):
+        sub_dirs = glob.glob(os.path.abspath(os.path.join(BASE_DIR, "..", "submission", "*")))
+        valid_dirs = [d for d in sub_dirs if os.path.basename(d).isdigit()]
+        valid_dirs.sort(key=lambda x: int(os.path.basename(x)), reverse=True)
+        
+        annotations = load_annotations()
+        
+        subs_data = []
+        for d in valid_dirs:
+            sub_id = os.path.basename(d)
+            sub_file = os.path.join(d, "submission.json")
+            conf_file = os.path.join(d, "config.json")
+            
+            if not os.path.exists(sub_file):
+                continue
+                
+            try:
+                with open(sub_file, "r") as f:
+                    data = json.load(f)
+            except:
+                continue
+                
+            preds = {item["task_id"]: item["results"] for item in data.get("predictions", [])}
+            
+            total_mrr = 0.0
+            hits = 0
+            top_1_hits = 0
+            evaluated_count = 0
+            
+            for task_id, gt_video in annotations.items():
+                if not gt_video:
+                    continue
+                evaluated_count += 1
+                task_results = preds.get(task_id, [])
+                seen = set()
+                video_list = []
+                for r in task_results:
+                    vid = r.get("video_id")
+                    if vid and vid not in seen:
+                        seen.add(vid)
+                        video_list.append(vid)
+                rank = -1
+                for i, vid in enumerate(video_list):
+                    if vid == gt_video:
+                        rank = i + 1
+                        break
+                if rank != -1:
+                    hits += 1
+                    total_mrr += 1.0 / rank
+                    if rank == 1:
+                        top_1_hits += 1
+            mrr = total_mrr / evaluated_count if evaluated_count > 0 else 0
+            
+            cfg_params = {}
+            bash_script = "# No config found"
+            if os.path.exists(conf_file):
+                try:
+                    with open(conf_file, "r") as fc:
+                        cfg = json.load(fc)
+                        args_dict = cfg.get("args", {})
+                        env_params = cfg.get("env_params", {})
+                        
+                        cfg_params = {
+                            "USE_SEQUENTIAL": args_dict.get('use_sequential', False),
+                            "USE_AUDIO": args_dict.get('use_audio', False),
+                            "SCENE_SEGMENTER": args_dict.get('scene_segmenter', 'none'),
+                            "OBJECT_SEGMENTER": args_dict.get('object_segmenter', 'none'),
+                            "NUM_EXPANSIONS": args_dict.get('num_expansions', 0),
+                            "SMOOTHING_WINDOW": args_dict.get('smoothing_window', 0),
+                            "OVERLAP_THRESH": args_dict.get('overlap_threshold', 0),
+                            "AGG_MODE": env_params.get('AGG_MODE', 'mean')
+                        }
+                        
+                        script_lines = [
+                            f"export USE_SEQUENTIAL=\"{'true' if cfg_params['USE_SEQUENTIAL'] else 'false'}\"",
+                            f"export USE_AUDIO=\"{'true' if cfg_params['USE_AUDIO'] else 'false'}\"",
+                            f"export SCENE_SEGMENTER=\"{cfg_params['SCENE_SEGMENTER']}\"",
+                            f"export OBJECT_SEGMENTER=\"{cfg_params['OBJECT_SEGMENTER']}\"",
+                            f"export NUM_EXPANSIONS={cfg_params['NUM_EXPANSIONS']}",
+                            f"export SMOOTHING_WINDOW={cfg_params['SMOOTHING_WINDOW']}",
+                            f"export OVERLAP_THRESHOLD={cfg_params['OVERLAP_THRESH']}",
+                            f"export AGG_MODE=\"{cfg_params['AGG_MODE']}\"",
+                            "./scripts/retrieval.sh"
+                        ]
+                        bash_script = "\\n".join(script_lines)
+                except:
+                    pass
+            
+            subs_data.append({
+                "id": sub_id,
+                "total_tasks": len(preds),
+                "evaluated_count": evaluated_count,
+                "hits": hits,
+                "top1_hits": top_1_hits,
+                "mrr": round(mrr, 4),
+                "config": cfg_params,
+                "script": bash_script
+            })
+            
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(subs_data).encode('utf-8'))
 
 if __name__ == "__main__":
     os.chdir(BASE_DIR)

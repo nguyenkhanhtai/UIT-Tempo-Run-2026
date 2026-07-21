@@ -22,7 +22,35 @@
             background-color: var(--bg-color);
             color: var(--text-primary);
             display: flex;
+            flex-direction: column;
             height: 100vh;
+            overflow: hidden;
+        }
+
+        .top-nav {
+            background-color: var(--surface-color);
+            border-bottom: 1px solid #333;
+            display: flex;
+            padding: 10px 20px;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+        .top-nav button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+        .top-nav button.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .app-container {
+            display: flex;
+            flex: 1;
             overflow: hidden;
         }
 
@@ -102,6 +130,12 @@
         .main-header h2 {
             margin: 0;
             font-size: 1.5rem;
+        }
+        
+        .gt-display {
+            font-size: 1rem;
+            color: var(--success-color);
+            margin-top: 5px;
         }
 
         .controls button {
@@ -243,39 +277,165 @@
             opacity: 1;
         }
 
+        /* SUBMISSIONS */
+        .submission-card {
+            background-color: var(--surface-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary-color);
+        }
+        .submission-card h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background-color: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-box .val {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        .stat-box .label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .code-block {
+            background-color: #000;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            overflow-x: auto;
+            color: #4af626;
+            position: relative;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #333;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-btn:hover { background: #555; }
+
     </style>
 </head>
 <body>
-    <!-- SIDEBAR -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <span>Tasks</span>
-            <span id="progress-text" style="font-size: 0.9rem; color: var(--text-secondary)">--/--</span>
-        </div>
-        <div class="task-list" id="task-list">
-            <div class="loading">Loading tasks...</div>
-        </div>
+    <div class="top-nav">
+        <button id="nav-tasks" class="active" onclick="switchTab('tasks')">Task Viewer</button>
+        <button id="nav-submissions" onclick="switchTab('submissions')">Submissions Dashboard</button>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-        <div class="main-header">
-            <h2 id="task-title">Select a Task</h2>
-            <div class="controls">
-                <button onclick="prevTask()">⬅ Prev</button>
-                <button class="skip-btn" onclick="skipTask()">⏭ Skip (No GT)</button>
-                <button onclick="nextTask()">Next ➡</button>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span>Tasks</span>
+                <span id="progress-text" style="font-size: 0.9rem; color: var(--text-secondary)">--/--</span>
+            </div>
+            <div class="task-list" id="task-list">
+                <div class="loading">Loading tasks...</div>
             </div>
         </div>
 
-        <div class="image-viewer" id="image-viewer">
-            <div class="loading">Select a task from the sidebar to view images.</div>
+        <!-- MAIN CONTENT -->
+        <div class="main-content" id="main-tasks">
+            <div class="main-header">
+                <div>
+                    <h2 id="task-title">Select a Task</h2>
+                    <div id="gt-display" class="gt-display">Annotated Ground Truth: None</div>
+                </div>
+                <div class="controls">
+                    <button onclick="prevTask()">⬅ Prev</button>
+                    <button class="skip-btn" onclick="skipTask()">⏭ Skip (No GT)</button>
+                    <button onclick="nextTask()">Next ➡</button>
+                </div>
+            </div>
+
+            <div class="image-viewer" id="image-viewer">
+                <div class="loading">Select a task from the sidebar to view images.</div>
+            </div>
+        </div>
+        
+        <div class="main-content" id="main-submissions" style="display: none; padding: 30px; overflow-y: auto;">
+            <h1 style="margin-top: 0">Submissions Dashboard</h1>
+            <button onclick="loadSubmissions()" style="padding: 8px 16px; background: var(--primary-color); color: black; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 20px;">Refresh Data</button>
+            <div id="submissions-list">
+                <div class="loading">Loading submissions...</div>
+            </div>
+        </div>
+
+        <!-- SUBMISSION VIEWER -->
+        <div class="main-content" id="main-submission-viewer" style="display: none; flex-direction: column;">
+            <div class="main-header">
+                <div>
+                    <h2 id="sv-title">Submission Viewer</h2>
+                    <div class="controls" style="margin-top: 10px;">
+                        <button onclick="switchTab('submissions')" style="background: #333; color: white;">⬅ Back to Dashboard</button>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; flex: 1; overflow: hidden;">
+                <!-- SV Sidebar -->
+                <div class="sidebar" style="width: 250px; border-right: 1px solid #333; display: flex; flex-direction: column;">
+                    <div class="sidebar-header">
+                        <span>Tasks</span>
+                    </div>
+                    <div class="task-list" id="sv-task-list">
+                        <div class="loading">Loading tasks...</div>
+                    </div>
+                </div>
+                <!-- SV Main -->
+                <div class="image-viewer" id="sv-image-viewer" style="flex: 1;">
+                    <div class="loading">Select a task from the sidebar to view results.</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         let tasks = [];
         let currentIndex = -1;
+        let svTasks = [];
+        let svCurrentIndex = -1;
+        let svSubId = "";
+        let svData = null;
+
+        function switchTab(tab) {
+            document.getElementById('nav-tasks').classList.remove('active');
+            document.getElementById('nav-submissions').classList.remove('active');
+            document.getElementById('sidebar').style.display = 'none';
+            document.getElementById('main-tasks').style.display = 'none';
+            document.getElementById('main-submissions').style.display = 'none';
+            document.getElementById('main-submission-viewer').style.display = 'none';
+
+            if (tab === 'tasks') {
+                document.getElementById('nav-tasks').classList.add('active');
+                document.getElementById('sidebar').style.display = 'flex';
+                document.getElementById('main-tasks').style.display = 'flex';
+            } else if (tab === 'submissions') {
+                document.getElementById('nav-submissions').classList.add('active');
+                document.getElementById('main-submissions').style.display = 'block';
+                loadSubmissions();
+            } else if (tab === 'viewer') {
+                document.getElementById('nav-submissions').classList.add('active');
+                document.getElementById('main-submission-viewer').style.display = 'flex';
+            }
+        }
 
         async function init() {
             try {
@@ -332,7 +492,19 @@
             try {
                 const res = await fetch(`/api/tasks/${task.id}`);
                 const data = await res.json();
-                renderImages(data.images, task.id);
+                
+                const gtDisplay = document.getElementById('gt-display');
+                let currentGtVideo = null;
+                if (data.gt_video) {
+                    currentGtVideo = data.gt_video;
+                    gtDisplay.innerText = `Annotated Ground Truth: ${data.gt_video}`;
+                    gtDisplay.style.color = 'var(--success-color)';
+                } else {
+                    gtDisplay.innerText = 'Annotated Ground Truth: None';
+                    gtDisplay.style.color = 'var(--text-secondary)';
+                }
+                
+                renderImages(data.images, task.id, currentGtVideo);
             } catch (err) {
                 console.error(err);
                 document.getElementById('image-viewer').innerHTML = '<div class="loading">Error loading images</div>';
@@ -351,7 +523,7 @@
             }
         }
 
-        function renderImages(images, taskId) {
+        function renderImages(images, taskId, gtVideo = null) {
             const viewer = document.getElementById('image-viewer');
             viewer.innerHTML = '';
             
@@ -363,7 +535,9 @@
             // Render list theo rank, ảnh to ở giữa
             images.forEach((img, idx) => {
                 const container = document.createElement('div');
-                container.className = 'image-container';
+                const isGtMatch = (gtVideo && img.video_id === gtVideo);
+                container.className = 'image-container' + (isGtMatch ? ' gt-match' : '');
+                
                 container.onclick = (e) => {
                     // Prevent submission if clicking on video player
                     if (e.target.tagName.toLowerCase() === 'video' || e.target.closest('.video-player-container')) return;
@@ -377,6 +551,7 @@
                     <img src="${img.url}" alt="${img.video_id}" loading="lazy">
                     <div class="image-info">
                         <span class="rank-badge">Rank ${img.rank}</span>
+                        ${isGtMatch ? '<span class="gt-badge" style="background:#28a745; color:white; padding:2px 6px; border-radius:4px; font-size:12px; font-weight:bold; margin-left:8px;">✅ GT Match</span>' : ''}
                         <div>
                             <span class="video-id" style="margin-right: 15px;">${img.video_id}</span>
                             <button class="play-video-btn" onclick="playVideo(event, '${img.video_id}', '${vidContainerId}')">▶ Play Video</button>
@@ -430,6 +605,57 @@
             }
         }
 
+        async function loadSubmissions() {
+            const list = document.getElementById('submissions-list');
+            list.innerHTML = '<div class="loading">Loading submissions...</div>';
+            try {
+                const res = await fetch('/api/submissions');
+                const subs = await res.json();
+                
+                if (subs.length === 0) {
+                    list.innerHTML = '<div>No submissions found.</div>';
+                    return;
+                }
+                
+                list.innerHTML = '';
+                subs.forEach(sub => {
+                    const hitRate = sub.evaluated_count > 0 ? ((sub.hits / sub.evaluated_count) * 100).toFixed(1) : 0;
+                    const top1Rate = sub.evaluated_count > 0 ? ((sub.top1_hits / sub.evaluated_count) * 100).toFixed(1) : 0;
+                    
+                    list.innerHTML += `
+                        <div class="submission-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>Submission ${sub.id}</h3>
+                                <button onclick="viewSubmission('${sub.id}')" style="padding: 6px 12px; background: var(--primary-color); color: black; border: none; border-radius: 4px; cursor: pointer;">View Results</button>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-box"><div class="val">${sub.evaluated_count} / ${sub.total_tasks}</div><div class="label">Evaluated / Total Tasks</div></div>
+                                <div class="stat-box"><div class="val">${sub.mrr}</div><div class="label">MRR</div></div>
+                                <div class="stat-box"><div class="val">${sub.hits} <span style="font-size:0.8rem">(${hitRate}%)</span></div><div class="label">Hits (Any Rank)</div></div>
+                                <div class="stat-box"><div class="val">${sub.top1_hits} <span style="font-size:0.8rem">(${top1Rate}%)</span></div><div class="label">Top-1 Hits</div></div>
+                            </div>
+                            <div style="margin-bottom: 10px; color: var(--text-secondary)">Reproduction Script:</div>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyText(this, '${btoa(sub.script)}')">Copy</button>
+                                ${sub.script.replace(/\\n/g, '<br>')}
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                list.innerHTML = '<div class="loading">Error loading submissions.</div>';
+            }
+        }
+        
+        function copyText(btn, b64text) {
+            const text = atob(b64text);
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = btn.innerText;
+                btn.innerText = 'Copied!';
+                setTimeout(() => btn.innerText = orig, 2000);
+            });
+        }
+
         // Initialize
         init();
 
@@ -449,6 +675,137 @@
                 skipTask();
             }
         });
+        
+        // SUBMISSION VIEWER LOGIC
+        async function viewSubmission(subId) {
+            svSubId = subId;
+            document.getElementById('sv-title').innerText = `Submission Viewer: ${subId}`;
+            switchTab('viewer');
+            
+            const list = document.getElementById('sv-task-list');
+            list.innerHTML = '<div class="loading">Loading submission...</div>';
+            
+            try {
+                const res = await fetch(`/api/submissions/${subId}`);
+                svData = await res.json();
+                
+                if (svData && svData.predictions) {
+                    svTasks = svData.predictions.map(p => ({
+                        id: p.task_id,
+                        results: p.results
+                    }));
+                    
+                    list.innerHTML = '';
+                    svTasks.forEach((task, index) => {
+                        const div = document.createElement('div');
+                        div.className = `task-item`;
+                        div.onclick = () => selectSvTask(index);
+                        div.innerHTML = `<span>Task ${task.id}</span>`;
+                        list.appendChild(div);
+                    });
+                    
+                    if (svTasks.length > 0) {
+                        selectSvTask(0);
+                    }
+                } else {
+                    list.innerHTML = '<div class="loading">No data found in submission.</div>';
+                }
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = '<div class="loading">Error loading submission</div>';
+            }
+        }
+
+        async function selectSvTask(index) {
+            if (index < 0 || index >= svTasks.length) return;
+            svCurrentIndex = index;
+            
+            const list = document.getElementById('sv-task-list');
+            Array.from(list.children).forEach((child, i) => {
+                if (i === index) child.classList.add('active');
+                else child.classList.remove('active');
+            });
+            
+            const task = svTasks[svCurrentIndex];
+            document.getElementById('sv-image-viewer').innerHTML = '<div class="loading">Loading task details...</div>';
+            
+            // Lấy GT từ API tasks
+            let gtVideo = null;
+            try {
+                const taskRes = await fetch(`/api/tasks/${task.id}`);
+                const taskData = await taskRes.json();
+                gtVideo = taskData.gt_video;
+            } catch (err) {
+                console.warn("Could not fetch GT for task", task.id);
+            }
+            
+            renderSvImages(task.results, task.id, gtVideo);
+        }
+
+        function renderSvImages(results, taskId, gtVideo) {
+            const viewer = document.getElementById('sv-image-viewer');
+            viewer.innerHTML = '';
+            
+            if (!results || results.length === 0) {
+                viewer.innerHTML = '<div class="loading">No results found for this task.</div>';
+                return;
+            }
+            
+            const header = document.createElement('div');
+            header.style.padding = '20px';
+            header.style.background = '#1e1e1e';
+            header.style.marginBottom = '20px';
+            header.innerHTML = `<h3>Task: ${taskId}</h3>`;
+            if (gtVideo) {
+                header.innerHTML += `<div style="color: var(--success-color); font-weight: bold;">Annotated Ground Truth: ${gtVideo}</div>`;
+            } else {
+                header.innerHTML += `<div style="color: var(--text-secondary);">Annotated Ground Truth: None</div>`;
+            }
+            viewer.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+            grid.style.gap = '20px';
+            grid.style.padding = '0 20px 20px 20px';
+            
+            results.forEach((r) => {
+                const isGtMatch = gtVideo && r.video_id === gtVideo;
+                
+                const container = document.createElement('div');
+                container.style.backgroundColor = 'var(--surface-color)';
+                container.style.borderRadius = '8px';
+                container.style.overflow = 'hidden';
+                container.style.boxShadow = '0 4px 6px rgba(0,0,0,0.3)';
+                if (isGtMatch) {
+                    container.style.border = '2px solid var(--success-color)';
+                }
+                
+                const vidContainerId = `sv-vid-${taskId}-${r.rank}`;
+                
+                container.innerHTML = `
+                    <div style="position: relative; padding-top: 56.25%;">
+                        <img src="/api/frame/${r.video_id}/${r.frame_ms}" 
+                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: black;"
+                             onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\'><rect width=\\'100%\\' height=\\'100%\\' fill=\\'%23333\\'/><text x=\\'50%\\' y=\\'50%\\' fill=\\'white\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\'>Image Not Found</text></svg>'">
+                    </div>
+                    <div style="padding: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="background: var(--primary-color); color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">Rank ${r.rank}</span>
+                            ${isGtMatch ? '<span style="color: var(--success-color); font-weight: bold; font-size: 0.8rem;">✅ GT Match</span>' : ''}
+                        </div>
+                        <div style="margin-bottom: 5px;"><strong>Video:</strong> ${r.video_id}</div>
+                        <div style="margin-bottom: 10px; color: var(--text-secondary);"><strong>Time:</strong> ${r.frame_ms} ms</div>
+                        <button class="play-video-btn" onclick="playVideo(event, '${r.video_id}', '${vidContainerId}')" style="width: 100%;">▶ Play Video</button>
+                    </div>
+                    <div class="video-player-container" id="${vidContainerId}"></div>
+                `;
+                grid.appendChild(container);
+            });
+            
+            viewer.appendChild(grid);
+            viewer.scrollTop = 0;
+        }
     </script>
 </body>
 </html>

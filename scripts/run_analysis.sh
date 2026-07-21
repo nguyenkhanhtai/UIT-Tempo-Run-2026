@@ -13,9 +13,8 @@ fi
 
 export KF_DIR="keyframes/$METHOD"
 export INDEX_DIR="artifacts/index/$METHOD"
-export TASKS_FILE=${1:-"dataset/Public_round_tasks.jsonl"}
-export NUM_TASKS=${2:-5}
-export GT_CSV=${GT_CSV:-"dataset/synthetic_eval_labels_v0.csv"}
+export TASKS_FILE="dataset/Public_round_tasks.jsonl"
+export NUM_TASKS=50
 
 export VLMS=(
   "PE-Core-bigG-14-448,meta"
@@ -42,15 +41,21 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export USE_AUDIO="true"
-export SCENE_SEGMENTER="qwen"
-export MAIN_QUERY_WEIGHT="2.0"
+export USE_AUDIO="false"
+export SCENE_SEGMENTER="regex"
 export OBJECT_SEGMENTER="none"
+export AGG_MODE="prod"
+export DP_MODE="prod"
+export CLIP_TO_ZERO="true"
+export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
 export LM_CACHE="false"
-export SMOOTHING_WINDOW=1
+export SMOOTHING_WINDOW=0
 export SMOOTHING_SIGMA=1.0
 export DISCOUNT_FACTOR="0.9"
+export NUM_EXPANSIONS=0
+export MAX_SEQ_GAP_MS=15000
+export OVERLAP_THRESHOLD=0000
 
 echo "=========================================================="
 echo "Running Retrieval Analysis on file: $TASKS_FILE (top $NUM_TASKS tasks)"
@@ -63,7 +68,8 @@ if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segment
 if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
-if [ -n "$GT_CSV" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --gt $GT_CSV"; fi
+if [ -n "$NUM_EXPANSIONS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --num-expansions $NUM_EXPANSIONS"; fi
+if [ -n "$OVERLAP_THRESHOLD" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --overlap-threshold $OVERLAP_THRESHOLD"; fi
 
 
 echo "Cleaning previous analysis outputs: figures/analysis"

@@ -83,6 +83,8 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
         
     import os
     agg_mode = os.environ.get("AGG_MODE", "harmonic").lower()
+    dp_mode = os.environ.get("DP_MODE", "add").lower()
+    clip_to_zero = os.environ.get("CLIP_TO_ZERO", "false").lower() == "true"
     
     for ti, task in enumerate(tqdm(tasks, desc="[scorer] Aggregating tasks")):
         sent_scores = {}
@@ -141,12 +143,18 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                     # 'rows' is guaranteed to be np.arange(N), so sims[r] is the score for frame r
                     for f, (center, r) in enumerate(frames):
                         S[m, f] = sims[r]
+                        
+                if clip_to_zero:
+                    S = np.clip(S, 0.0, 1.0)
                             
                 # Convert similarities to log probabilities? NO!
                 # Normalizing per video means a 1-frame video always gets probability 1.0 (log_prob = 0),
                 # which will always beat a 100-frame video. We must use the raw similarities directly!
                 
-                DP = np.full((M, F), -np.inf, dtype=np.float32)
+                if dp_mode == "prod":
+                    DP = np.zeros((M, F), dtype=np.float32)
+                else:
+                    DP = np.full((M, F), -np.inf, dtype=np.float32)
                 backptr = np.zeros((M, F), dtype=int)
                 
                 DP[0, :] = S[0, :]
@@ -174,43 +182,86 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                             best_val = DP[m-1, best_k]
                         else:
                             best_k = 0
-                            best_val = -np.inf
+                            best_val = -np.inf if dp_mode != "prod" else 0.0
                             
-                        DP[m, f] = best_val + S[m, f] * (discount_factor ** m)
+                        if dp_mode == "prod":
+                            DP[m, f] = best_val * S[m, f]
+                        else:
+                            DP[m, f] = best_val + S[m, f] * (discount_factor ** m)
                         backptr[m, f] = best_k
                         
-                best_f = int(np.argmax(DP[M-1, :]))
-                final_sc = float(DP[M-1, best_f])
+                final_scores = DP[M-1, :]
+                sorted_f_indices = np.argsort(final_scores)[::-1]
                 
-                # Backtrack
-                curr_f = best_f
-                sequence_f = [best_f]
-                for m in range(M-1, 0, -1):
-                    curr_f = backptr[m, curr_f]
-                    sequence_f.append(curr_f)
-                
-                sequence_f.reverse()
-                sequence_ms = [frames[f][0] for f in sequence_f]
-                
-                # Lấy frame ở giữa thời gian đầu và thời gian cuối
-                middle_ms = int((sequence_ms[0] + sequence_ms[-1]) / 2)
-                
-                # Tạm lấy feature của frame gần middle nhất
-                closest_f = min(range(F), key=lambda x: abs(frames[x][0] - middle_ms))
-                best_r = frames[closest_f][1]
-                
-                # Lưu tất cả các frames và similarity để sampling sau này
+                added_intervals = []
                 frame_sims_vid = np.mean(S, axis=0)
                 all_frames = [{"frame_ms": frames[i][0], "sim": float(frame_sims_vid[i])} for i in range(F)]
                 
-                candidates.append({
-                    "video_id": v,
-                    "frame_ms": middle_ms,
-                    "sim": final_sc,
-                    "feat": emb[best_r],
-                    "sequence_ms": sequence_ms,
-                    "all_frames": all_frames
-                })
+                for f_idx in sorted_f_indices:
+                    final_sc = float(final_scores[f_idx])
+                    if final_sc <= -1e5:
+                        continue
+                        
+                    # Backtrack
+                    curr_f = f_idx
+                    sequence_f = [f_idx]
+                    for m in range(M-1, 0, -1):
+                        curr_f = backptr[m, curr_f]
+                        sequence_f.append(curr_f)
+                    
+                    sequence_f.reverse()
+                    sequence_ms = [frames[f][0] for f in sequence_f]
+                    
+                    c_start = sequence_ms[0]
+                    c_end = sequence_ms[-1]
+                    if c_start > c_end:
+                        c_start, c_end = c_end, c_start
+                        
+                    is_overlap = False
+                    for acc_start, acc_end in added_intervals:
+                        if max(c_start, acc_start) <= min(c_end, acc_end):
+                            is_overlap = True
+                            break
+                            
+                    if not is_overlap:
+                        added_intervals.append([c_start, c_end])
+                        
+                        middle_ms = int((c_start + c_end) / 2)
+                        
+                        interval_f_indices = [i for i in range(F) if c_start <= frames[i][0] <= c_end]
+                        if interval_f_indices:
+                            best_f_in_interval = max(interval_f_indices, key=lambda i: frame_sims_vid[i])
+                            best_seq_ms = frames[best_f_in_interval][0]
+                        else:
+                            best_seq_ms = middle_ms
+
+                        pos_mode = os.environ.get("POSITION_MODE", "middle").lower()
+                        if pos_mode == "first":
+                            chosen_frame_ms = c_start
+                        elif pos_mode == "second":
+                            chosen_frame_ms = sequence_ms[1] if len(sequence_ms) > 1 else sequence_ms[0]
+                        elif pos_mode == "best":
+                            chosen_frame_ms = best_seq_ms
+                        else:
+                            chosen_frame_ms = middle_ms
+                            
+                        closest_f = min(range(F), key=lambda x: abs(frames[x][0] - chosen_frame_ms))
+                        best_r = frames[closest_f][1]
+                        
+                        candidates.append({
+                            "video_id": v,
+                            "frame_ms": chosen_frame_ms,
+                            "sim": final_sc,
+                            "feat": emb[best_r],
+                            "sequence_ms": sequence_ms,
+                            "best_score_ms": best_seq_ms,
+                            "best_score_sec": best_seq_ms / 1000.0,
+                            "all_frames": all_frames
+                        })
+                        
+                        max_preds_vid = int(os.environ.get("MAX_PREDS_PER_VIDEO", "10"))
+                        if len(added_intervals) >= max_preds_vid:
+                            break
         else:
             # === MEAN FUSION AGGREGATION (NO CAUSAL) ===
             # We have sent_scores: sent_idx -> (rows, sims)
@@ -241,11 +292,14 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                     v_best_row[v] = r
                     
             for v, final_sc in v_best_score.items():
+                best_ms = v_best_center[v]
                 candidates.append({
                     "video_id": v,
-                    "frame_ms": v_best_center[v],
+                    "frame_ms": best_ms,
                     "sim": final_sc,
                     "feat": emb[v_best_row[v]],
+                    "best_score_ms": best_ms,
+                    "best_score_sec": best_ms / 1000.0,
                     "all_frames": v_all_frames[v]
                 })
             

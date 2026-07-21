@@ -54,7 +54,13 @@ def parse_queries(tasks, use_sequential=False, scene_segmenter="regex", object_s
                 objects = [scene]
                 
             for seg_idx, obj in enumerate(objects):
-                all_queries.append(obj)
+                if seg_idx > 0:
+                    # Wrap isolated keywords in a prompt to align with CLIP's training distribution
+                    query_str = f"A photo that has: {obj}"
+                else:
+                    query_str = obj
+                    
+                all_queries.append(query_str)
                 task_mapping.append((ti, sent_idx, seg_idx))
             
     # Build per-task segment info for logging
