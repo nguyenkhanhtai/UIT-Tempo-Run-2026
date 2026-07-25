@@ -2624,6 +2624,19 @@ wheels = [
 ]
 
 [[package]]
+name = "scenegraphparser"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "spacy" },
+    { name = "tabulate" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/df/8381efe4075e737922cd24508ff92476402c1a9e6ca826e945981bba103c/SceneGraphParser-0.1.0.tar.gz", hash = "sha256:5ccf22410744dfd65fe865cd0dd51ba9c14c28313c57cecbd724f40d9723cdfa", size = 18263, upload-time = "2022-03-01T17:36:49.943Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/79/ccb4130a946c1c31703352e7f46c072eaa975ff50080f4444f03f6861650/SceneGraphParser-0.1.0-py3-none-any.whl", hash = "sha256:c7269b21c00cd1ae94a3678a321a22f47e0406adad4e9df4c296da40786275cb", size = 19605, upload-time = "2022-03-01T17:36:48.757Z" },
+]
+
+[[package]]
 name = "scikit-image"
 version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3191,6 +3204,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tabulate"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/58/8c37dea7bbf769b20d58e7ace7e5edfe65b849442b00ffcdd56be88697c6/tabulate-0.10.0.tar.gz", hash = "sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d", size = 91754, upload-time = "2026-03-04T18:55:34.402Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl", hash = "sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3", size = 39814, upload-time = "2026-03-04T18:55:31.284Z" },
+]
+
+[[package]]
 name = "thinc"
 version = "8.3.13"
 source = { registry = "https://pypi.org/simple" }
@@ -3570,6 +3592,7 @@ dependencies = [
     { name = "pillow" },
     { name = "rapidfuzz" },
     { name = "rapidocr-onnxruntime" },
+    { name = "scenegraphparser" },
     { name = "scikit-learn" },
     { name = "seaborn" },
     { name = "sentence-transformers" },
@@ -3600,6 +3623,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.0" },
     { name = "rapidfuzz" },
     { name = "rapidocr-onnxruntime" },
+    { name = "scenegraphparser" },
     { name = "scikit-learn" },
     { name = "seaborn" },
     { name = "sentence-transformers" },
