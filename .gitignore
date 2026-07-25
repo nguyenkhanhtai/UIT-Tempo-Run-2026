@@ -32,3 +32,8 @@ venv/
 env/
 logs/
 material/
+
+# test files & debug logs
+test*.py
+routing.txt
+segments.txt
