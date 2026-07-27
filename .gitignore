@@ -37,3 +37,5 @@ material/
 test*.py
 routing.txt
 segments.txt
+
+*.log
