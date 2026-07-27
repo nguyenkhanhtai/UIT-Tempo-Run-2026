@@ -731,18 +731,20 @@
             
             // Lấy GT từ API tasks
             let gtVideo = null;
+            let taskDesc = "";
             try {
                 const taskRes = await fetch(`/api/tasks/${task.id}`);
                 const taskData = await taskRes.json();
                 gtVideo = taskData.gt_video;
+                taskDesc = taskData.description || "";
             } catch (err) {
                 console.warn("Could not fetch GT for task", task.id);
             }
             
-            renderSvImages(task.results, task.id, gtVideo);
+            renderSvImages(task.results, task.id, gtVideo, taskDesc);
         }
 
-        function renderSvImages(results, taskId, gtVideo) {
+        function renderSvImages(results, taskId, gtVideo, taskDesc) {
             const viewer = document.getElementById('sv-image-viewer');
             viewer.innerHTML = '';
             
@@ -752,10 +754,12 @@
             }
             
             const header = document.createElement('div');
+            header.id = 'sv-task-header';
             header.style.padding = '20px';
             header.style.background = '#1e1e1e';
             header.style.marginBottom = '20px';
             header.innerHTML = `<h3>Task: ${taskId}</h3>`;
+            header.innerHTML += `<div style="color: var(--text-secondary); margin-top: 5px; margin-bottom: 10px;"><i>"${taskDesc}"</i></div>`;
             if (gtVideo) {
                 header.innerHTML += `<div style="color: var(--success-color); font-weight: bold;">Annotated Ground Truth: ${gtVideo}</div>`;
             } else {

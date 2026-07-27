@@ -33,13 +33,21 @@ def parse_queries(tasks, use_sequential=False, scene_segmenter="regex", object_s
             task_mapping.append((ti, 0, 0)) # Main query only
             continue
             
+        target_scene_idx = None
         if use_sequential and scene_seg is not None:
-            scenes = all_scenes_list[ti] if ti < len(all_scenes_list) else [desc]
+            seg_res = all_scenes_list[ti] if ti < len(all_scenes_list) else [desc]
+            if isinstance(seg_res, dict):
+                scenes = seg_res.get("scenes", [desc])
+                target_scene_idx = seg_res.get("target_scene_index", None)
+            else:
+                scenes = seg_res
+                
+            if not scenes:
+                scenes = [desc]
         else:
             scenes = [desc]
             
-        if not scenes:
-            scenes = [desc]
+        task["target_scene_index"] = target_scene_idx
             
         for sent_idx, scene in enumerate(scenes):
             if use_sequential and obj_seg is not None:

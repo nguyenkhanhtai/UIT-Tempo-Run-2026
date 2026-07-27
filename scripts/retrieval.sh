@@ -3,8 +3,8 @@ set -e
 
 trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
 
-export TASKS_FILE="dataset/Public_round_tasks.jsonl"
-export NUM_TASKS=300
+export TASKS_FILE="dataset/private_round_tasks.jsonl"
+export NUM_TASKS=700
 export FPS=1
 
 if [ "$FPS" = "0" ]; then
@@ -42,7 +42,7 @@ export VLMS=(
 
 export USE_SEQUENTIAL="true"
 export USE_AUDIO="false"
-export SCENE_SEGMENTER="regex"
+export SCENE_SEGMENTER="qwen7b"
 export OBJECT_SEGMENTER="none"
 export AGG_MODE="prod"
 export DP_MODE="plus"
@@ -51,15 +51,16 @@ export MAX_PREDS_PER_VIDEO="10"
 export CLIP_TO_ZERO="true"
 export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
-export LM_CACHE="false"
+export LM_CACHE="true"
 export SMOOTHING_WINDOW=0
 export SMOOTHING_SIGMA=1.0
 export DISCOUNT_FACTOR="0.8"
 export NUM_EXPANSIONS=0
-export MAX_SEQ_GAP_MS=5000
+export MAX_SEQ_GAP_MS=6000
 export OVERLAP_THRESHOLD=0000
 export USE_OD_RERANKING="false"
 export OD_RERANKING_WEIGHT="0.3"
+export SLIDING_SIM_THRESHOLD="0.95"
 
 export USE_VLM_RESCORING="false"
 export VLM_EVAL_MODE="judge"
@@ -81,7 +82,8 @@ if [ -n "$NUM_EXPANSIONS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --num-expansions
 if [ -n "$OVERLAP_THRESHOLD" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --overlap-threshold $OVERLAP_THRESHOLD"; fi
 if [ -n "$NUM_TASKS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --n $NUM_TASKS"; fi
 
-PYTHONPATH=. uv run python pipeline/retrieve.py \
+export NUM_CHUNKS=5
+PYTHONPATH=. uv run python scripts/run_chunked.py \
   --tasks $TASKS_FILE \
   --out submission.json \
   --visual-shards $INDEX_DIR/visual \

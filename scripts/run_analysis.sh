@@ -13,7 +13,7 @@ fi
 
 export KF_DIR="keyframes/$METHOD"
 export INDEX_DIR="artifacts/index/$METHOD"
-export TASKS_FILE="dataset/Public_round_tasks.jsonl"
+export TASKS_FILE="dataset/private_round_tasks.jsonl"
 export NUM_TASKS=50
 
 export VLMS=(
@@ -42,20 +42,30 @@ export VLMS=(
 
 export USE_SEQUENTIAL="true"
 export USE_AUDIO="false"
-export SCENE_SEGMENTER="regex"
+export SCENE_SEGMENTER="qwen7b"
 export OBJECT_SEGMENTER="none"
 export AGG_MODE="prod"
-export DP_MODE="prod"
+export DP_MODE="plus"
+export POSITION_MODE="second" # options: "first", "second", "middle", "best", "median"
+export MAX_PREDS_PER_VIDEO="10"
 export CLIP_TO_ZERO="true"
 export MAIN_QUERY_WEIGHT="3.0"
 export SPLIT_QUERY="true"
-export LM_CACHE="false"
+export LM_CACHE="true"
 export SMOOTHING_WINDOW=0
 export SMOOTHING_SIGMA=1.0
-export DISCOUNT_FACTOR="0.9"
+export DISCOUNT_FACTOR="0.8"
 export NUM_EXPANSIONS=0
-export MAX_SEQ_GAP_MS=15000
+export MAX_SEQ_GAP_MS=6000
 export OVERLAP_THRESHOLD=0000
+export USE_OD_RERANKING="false"
+export OD_RERANKING_WEIGHT="0.3"
+export SLIDING_SIM_THRESHOLD="0.95"
+
+export USE_VLM_RESCORING="false"
+export VLM_EVAL_MODE="judge"
+export RESCORE_RANK=1
+export VLM_MODEL="llava-hf/llava-next-video-7b-hf"
 
 echo "=========================================================="
 echo "Running Retrieval Analysis on file: $TASKS_FILE (top $NUM_TASKS tasks)"

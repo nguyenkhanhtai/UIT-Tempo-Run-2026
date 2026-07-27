@@ -48,7 +48,7 @@ def wrap_text(text, font, max_width, draw):
 
 def main():
     import sys
-    tasks_file = "dataset/Public_round_tasks.jsonl"
+    tasks_file = "dataset/private_round_tasks.jsonl"
     
     if len(sys.argv) > 1:
         submission_file = sys.argv[1]

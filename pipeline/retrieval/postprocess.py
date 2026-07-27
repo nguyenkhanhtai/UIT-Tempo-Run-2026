@@ -98,7 +98,8 @@ def apply_reranking(ti, task, candidates, default_top_videos, emb_lookup, first_
                 "video_id": vid,
                 "frame_ms": c["frame_ms"],
                 "start_ms": c_start,
-                "end_ms": c_end
+                "end_ms": c_end,
+                "sim": float(c.get("sim", 0.0))
             }
             if "best_score_ms" in c:
                 res_dict["best_score_ms"] = c["best_score_ms"]
@@ -135,8 +136,56 @@ def rrf_fuse(candidates1, candidates2=None, k=60):
         for vid, sc in sorted_scores:
             info[vid]["sim"] = sc
         fused = [info[vid] for vid, sc in sorted_scores]
+        fused = [info[vid] for vid, sc in sorted_scores]
         fused_tasks.append((task, fused))
     return fused_tasks
+
+def apply_global_exclusion(preds, overlap_threshold_ms=2000):
+    """
+    Global NMS: ensure that no two tasks can claim the same video segment.
+    """
+    # 1. Flatten all predictions across all tasks
+    all_cands = []
+    for t_idx, p in enumerate(preds):
+        for c in p.get("results", []):
+            all_cands.append((t_idx, c))
+            
+    # 2. Sort globally by sim (descending)
+    all_cands.sort(key=lambda x: x[1].get("sim", 0.0), reverse=True)
+    
+    # 3. Greedy assignment
+    new_results = [[] for _ in preds]
+    used_intervals = {} # video_id -> list of [start, end]
+    
+    for t_idx, c in all_cands:
+        max_preds = 10  # Standard target per task
+        if len(new_results[t_idx]) >= max_preds:
+            continue
+            
+        vid = c["video_id"]
+        c_start = c["start_ms"] - overlap_threshold_ms
+        c_end = c["end_ms"] + overlap_threshold_ms
+        
+        is_overlap = False
+        if vid in used_intervals:
+            for acc_start, acc_end in used_intervals[vid]:
+                if max(c_start, acc_start) <= min(c_end, acc_end):
+                    is_overlap = True
+                    break
+                    
+        if not is_overlap:
+            if vid not in used_intervals:
+                used_intervals[vid] = []
+            used_intervals[vid].append([c_start, c_end])
+            
+            # Re-assign rank
+            c["rank"] = len(new_results[t_idx]) + 1
+            new_results[t_idx].append(c)
+            
+    for t_idx, p in enumerate(preds):
+        p["results"] = new_results[t_idx]
+        
+    return preds
 
 def postprocess_pipeline(args, tasks, all_candidates_visual, all_candidates_audio, first_vids, first_ts, first_emb, expanded_Q_embs):
     if all_candidates_audio is not None:
@@ -161,5 +210,8 @@ def postprocess_pipeline(args, tasks, all_candidates_visual, all_candidates_audi
         
     from pipeline.retrieval.reranker.vlm_rescorer import apply_vlm_rescoring
     preds = apply_vlm_rescoring(tasks, preds)
+        
+    print("[retrieve] Applying Global Exclusion (Global NMS)...")
+    preds = apply_global_exclusion(preds, overlap_threshold_ms=args.overlap_threshold)
         
     return preds, all_candidates_final

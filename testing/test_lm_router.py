@@ -12,7 +12,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Load first 5 tasks
-TASKS_FILE = "dataset/Public_round_tasks.jsonl"
+TASKS_FILE = "dataset/private_round_tasks.jsonl"
 N = 10
 
 with open(TASKS_FILE) as f:

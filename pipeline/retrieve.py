@@ -181,15 +181,29 @@ def save_submission(args, preds):
     """Save submission.json and config.json; return the submission directory (or None)."""
     # Clean up auxiliary fields before saving to avoid format issues
     clean_preds = []
+    detailed_preds = []
     for pred in preds:
         clean_results = []
+        detailed_results = []
         for c in pred.get("results", []):
             # Keep rank, video_id and frame_ms for the final submission
             clean_c = {"rank": c.get("rank"), "video_id": c.get("video_id"), "frame_ms": c.get("frame_ms")}
             clean_results.append(clean_c)
+            
+            # Detailed submission with all fields
+            detailed_c = {}
+            for k, v in c.items():
+                if hasattr(v, "item"): # Convert numpy/torch scalar to python native
+                    detailed_c[k] = v.item()
+                else:
+                    detailed_c[k] = v
+            detailed_results.append(detailed_c)
+            
         clean_preds.append({"task_id": pred["task_id"], "results": clean_results})
+        detailed_preds.append({"task_id": pred["task_id"], "results": detailed_results})
         
     sub = {"predictions": clean_preds}
+    detailed_sub = {"predictions": detailed_preds}
     out_path = args.out
     out_dir = None
     
@@ -211,6 +225,9 @@ def save_submission(args, preds):
         os.makedirs(out_dir, exist_ok=True)
 
     json.dump(sub, open(out_path, "w"))
+    
+    detailed_out_path = os.path.join(out_dir, "detailed_submission.json")
+    json.dump(detailed_sub, open(detailed_out_path, "w"), indent=2)
     
     # Save parameters
     config_data = {
@@ -241,7 +258,7 @@ def save_submission(args, preds):
     zip_path = os.path.join(out_dir, "submission.zip")
     with zipfile.ZipFile(zip_path, 'w') as zf:
         zf.write(out_path, arcname="submission.json")
-    print(f"[done] wrote {out_path}, {config_path}, {zip_path} ({len(preds)} tasks)", flush=True)
+    print(f"[done] wrote {out_path}, {detailed_out_path}, {config_path}, {zip_path} ({len(preds)} tasks)", flush=True)
     
     return out_dir
 
@@ -352,20 +369,22 @@ def generate_figures(out_dir, preds, tasks):
             p1 = get_keyframe_path(vid, first_ms)
             if p1:
                 try:
-                    img1 = Image.open(p1).convert("RGB")
+                    with Image.open(p1) as img_file:
+                        img1 = img_file.convert("RGB")
                     text1 = f"Rank: {rank} | Type: FIRST FRAME\nVideo: {vid} | Time: {first_ms}ms\n\nInstruction: {desc}"
                     img1 = overlay_text(img1, text1)
-                    img1.save(os.path.join(task_dir, f"rank{rank}_first_frame.jpg"))
+                    img1.save(os.path.join(task_dir, f"rank_{rank}_{vid}_first.jpg"))
                 except Exception:
                     pass
                     
             p2 = get_keyframe_path(vid, chosen_ms)
             if p2:
                 try:
-                    img2 = Image.open(p2).convert("RGB")
+                    with Image.open(p2) as img_file:
+                        img2 = img_file.convert("RGB")
                     text2 = f"Rank: {rank} | Type: CHOSEN FRAME\nVideo: {vid} | Time: {chosen_ms}ms\n\nInstruction: {desc}"
                     img2 = overlay_text(img2, text2)
-                    img2.save(os.path.join(task_dir, f"rank{rank}_chosen_frame.jpg"))
+                    img2.save(os.path.join(task_dir, f"rank_{rank}_{vid}_chosen.jpg"))
                 except Exception:
                     pass
 
@@ -378,15 +397,22 @@ def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
         for ti, task in enumerate(tasks):
             f.write(f"Task ID: {task.get('task_id', ti)}\n")
             f.write(f"Full Query: {task.get('description', '')}\n")
+            
+            target_idx = task.get("target_scene_index")
+            if target_idx is not None:
+                f.write(f"Target Scene: Scene {int(target_idx) + 1}\n")
+                
             segs = task_segments.get(ti, {})
             if segs:
                 for sent_idx in sorted(segs):
                     items = segs[sent_idx]
                     # First item (seg_idx==0) is always the scene
                     scene_text = items[0]["text"] if items else ""
-                    f.write(f"  Scene {sent_idx + 1}: {scene_text}\n")
+                    
+                    prefix = "--> " if (target_idx is not None and sent_idx == target_idx) else "    "
+                    f.write(f"{prefix}Scene {sent_idx + 1}: {scene_text}\n")
                     for item in items[1:]:
-                        f.write(f"    - Object: {item['text']}\n")
+                        f.write(f"        - Object: {item['text']}\n")
             else:
                 f.write(f"  (No segmentation — full query used)\n")
             f.write("\n")

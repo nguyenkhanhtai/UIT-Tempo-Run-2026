@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
-PORT = 5000
+PORT = 5050
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FIGURES_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "figures", "task"))
 ANNOTATIONS_FILE = os.path.join(BASE_DIR, "annotations.json")
@@ -19,6 +19,20 @@ def load_annotations():
         except Exception:
             return {}
     return {}
+
+def load_task_descriptions():
+    desc = {}
+    tasks_file = os.path.abspath(os.path.join(BASE_DIR, "..", "dataset", "private_round_tasks.jsonl"))
+    if os.path.exists(tasks_file):
+        try:
+            with open(tasks_file, "r") as f:
+                for line in f:
+                    if line.strip():
+                        t = json.loads(line)
+                        desc[t["task_id"]] = t.get("description", "")
+        except Exception:
+            pass
+    return desc
 
 def save_annotations(data):
     with open(ANNOTATIONS_FILE, "w") as f:
@@ -242,26 +256,41 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
     def handle_get_task_images(self, task_id):
         task_dir = os.path.join(FIGURES_DIR, task_id)
         if not os.path.exists(task_dir):
-            self.send_error(404, "Task not found")
-            return
-            
-        images = []
-        for f in sorted(os.listdir(task_dir)):
-            if f.endswith(".jpg") or f.endswith(".png"):
-                parts = f.replace(".jpg", "").replace(".png", "").split("_")
-                rank = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 999
-                # video_id is everything after rank until the end
-                video_id = "_".join(parts[2:]) if len(parts) > 2 else f
-                images.append({
-                    "filename": f,
-                    "rank": rank,
-                    "video_id": video_id,
-                    "url": f"/images/{task_id}/{f}"
-                })
+            images = []
+        else:
+            images = []
+            for f in sorted(os.listdir(task_dir)):
+                if f.endswith(".jpg") or f.endswith(".png"):
+                    parts = f.replace(".jpg", "").replace(".png", "").split("_")
+                    
+                    # filename format: rank_1_v3c1_12345_first.jpg or rank_1_v3c1_12345.jpg
+                    rank = 999
+                    if len(parts) > 1 and parts[1].isdigit():
+                        rank = int(parts[1])
+                    elif len(parts) > 0 and parts[0].startswith("rank"):
+                        try: rank = int(parts[0].replace("rank", ""))
+                        except: pass
+                    
+                    # Try to find standard v3cX pattern for video_id
+                    video_id = f
+                    import re
+                    match = re.search(r'(v3c\d+_\d+)', f)
+                    if match:
+                        video_id = match.group(1)
+                    else:
+                        video_id = "_".join(parts[2:]) if len(parts) > 2 else f
+                        
+                    images.append({
+                        "filename": f,
+                        "rank": rank,
+                        "video_id": video_id,
+                        "url": f"/images/{task_id}/{f}"
+                    })
                 
         images.sort(key=lambda x: x["rank"])
         annotations = load_annotations()
         gt_video = annotations.get(task_id, None)
+        task_desc = load_task_descriptions().get(task_id, "")
         
         self.send_response(200)
         self.send_header("Content-type", "application/json")
@@ -269,6 +298,7 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({
             "task_id": task_id, 
             "gt_video": gt_video,
+            "description": task_desc,
             "images": images
         }).encode('utf-8'))
 

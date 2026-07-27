@@ -10,7 +10,7 @@ trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; f
 export DATASET_ROOT="dataset/Video_V3C"
 export KF_DIR="keyframes"
 export INDEX_DIR="artifacts/index"
-export TASKS_FILE="dataset/Public_round_tasks.jsonl"
+export TASKS_FILE="dataset/private_round_tasks.jsonl"
 
 # Auto-detect number of GPUs
 NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l || echo 1)
@@ -84,6 +84,9 @@ export CAPTION_MODEL="microsoft/Florence-2-large"
 # --- CÁC TÙY CHỌN DÙNG METADATA ĐỂ CHẤM ĐIỂM VÀ LỌC KẾT QUẢ ---
 export USE_OCR="false"
 export USE_OD="false"
+export USE_OD_RERANKING="false"
+export OD_RERANKING_WEIGHT="0.3"
+export SLIDING_SIM_THRESHOLD="0.95"
 export USE_CAPTIONING="false"
 export USE_CLUSTERING="false"
 export USE_CATEGORY="false"

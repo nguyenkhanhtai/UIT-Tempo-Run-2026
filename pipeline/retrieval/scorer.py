@@ -235,19 +235,63 @@ def aggregate_scores(task_mapping, top_idx, top_val, tasks, vids, ts, emb, metad
                         else:
                             best_seq_ms = middle_ms
 
-                        pos_mode = os.environ.get("POSITION_MODE", "middle").lower()
-                        if pos_mode == "first":
-                            chosen_frame_ms = c_start
-                        elif pos_mode == "second":
-                            chosen_frame_ms = sequence_ms[1] if len(sequence_ms) > 1 else sequence_ms[0]
-                        elif pos_mode == "best":
-                            chosen_frame_ms = best_seq_ms
-                        elif pos_mode == "median":
-                            chosen_frame_ms = sequence_ms[len(sequence_ms) // 2]
+                        target_scene_idx = task.get("target_scene_index", None)
+                        
+                        if target_scene_idx is not None and isinstance(target_scene_idx, int) and target_scene_idx < len(sequence_ms):
+                            exact_moment_m = target_scene_idx
                         else:
-                            chosen_frame_ms = middle_ms
+                            exact_moment_m = -1
                             
+                        if exact_moment_m != -1:
+                            chosen_frame_ms = sequence_ms[exact_moment_m]
+                            chosen_idx = exact_moment_m
+                        else:
+                            pos_mode = os.environ.get("POSITION_MODE", "middle").lower()
+                            if pos_mode == "first":
+                                chosen_frame_ms = c_start
+                                chosen_idx = 0
+                            elif pos_mode == "second":
+                                chosen_idx = 1 if len(sequence_ms) > 1 else 0
+                                chosen_frame_ms = sequence_ms[chosen_idx]
+                            elif pos_mode == "best":
+                                chosen_frame_ms = best_seq_ms
+                                chosen_idx = sequence_ms.index(best_seq_ms) if best_seq_ms in sequence_ms else -1
+                            elif pos_mode == "median":
+                                chosen_idx = len(sequence_ms) // 2
+                                chosen_frame_ms = sequence_ms[chosen_idx]
+                            else:
+                                chosen_frame_ms = middle_ms
+                                chosen_idx = -1
+                                
                         closest_f = min(range(F), key=lambda x: abs(frames[x][0] - chosen_frame_ms))
+                        best_r = frames[closest_f][1]
+                        
+                        sliding_sim_thresh = float(os.environ.get("SLIDING_SIM_THRESHOLD", "0.95"))
+                        
+                        if chosen_idx == 0 and len(sequence_ms) > 1:
+                            # Slide right
+                            for step_f in range(closest_f + 1, F):
+                                if frames[step_f][0] > c_end:
+                                    break
+                                step_r = frames[step_f][1]
+                                sim = float(np.dot(emb[best_r], emb[step_r]) / (np.linalg.norm(emb[best_r]) * np.linalg.norm(emb[step_r]) + 1e-6))
+                                if sim >= sliding_sim_thresh:
+                                    closest_f = step_f
+                                else:
+                                    break
+                        elif chosen_idx == len(sequence_ms) - 1 and len(sequence_ms) > 1:
+                            # Slide left
+                            for step_f in range(closest_f - 1, -1, -1):
+                                if frames[step_f][0] < c_start:
+                                    break
+                                step_r = frames[step_f][1]
+                                sim = float(np.dot(emb[best_r], emb[step_r]) / (np.linalg.norm(emb[best_r]) * np.linalg.norm(emb[step_r]) + 1e-6))
+                                if sim >= sliding_sim_thresh:
+                                    closest_f = step_f
+                                else:
+                                    break
+                                    
+                        chosen_frame_ms = frames[closest_f][0]
                         best_r = frames[closest_f][1]
                         
                         candidates.append({

@@ -126,7 +126,7 @@ class LMRouter:
         print(f"[lm_router] WARNING: Could not parse route for query, defaulting to Use_asr=False, Use_ocr=False.")
         return {"Use_asr": False, "asr_query": None, "Use_ocr": False, "ocr_query": None}
 
-    def route_batch(self, texts: list, batch_size: int = 32) -> list:
+    def route_batch(self, texts: list, batch_size: int = 2) -> list:
         """Route a batch of queries. Returns list of normalized route dicts."""
         results = [None] * len(texts)
         uncached_texts = []
@@ -179,6 +179,9 @@ class LMRouter:
                 outputs[:, inputs.input_ids.shape[1]:], skip_special_tokens=True
             )
             all_responses.extend(responses)
+            del inputs, outputs
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         for i, response in enumerate(all_responses):
             print(response)

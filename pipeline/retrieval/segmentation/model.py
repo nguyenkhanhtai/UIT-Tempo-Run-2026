@@ -101,8 +101,8 @@ class SceneGraphSegmenter(BaseSegmenter):
         
     def _load_model(self):
         try:
-            import sng_parser
-            self.parser = sng_parser
+            import sng_parser.parser as sng_parser_core
+            self.parser = sng_parser_core
             print("[segmenter] Loading sng_parser for Scene Graph object extraction...")
         except ImportError:
             print("[segmenter] sng_parser is not installed. Run: uv pip install sng_parser")
@@ -230,20 +230,24 @@ def get_segmenters(scene_engine="regex", object_engine="regex"):
     scene_engine = scene_engine.lower() if scene_engine else "regex"
     object_engine = object_engine.lower() if object_engine else "regex"
     
-    if scene_engine in ["qwen", "phi3", "qwen1.5"]:
+    if scene_engine in ["qwen", "phi3", "qwen1.5", "qwen3b", "qwen7b", "qwen3-8b"]:
         from pipeline.retrieval.segmentation.lm_segmenter import LMSegmenter
         scene_seg = LMSegmenter(engine_name=scene_engine, mode="scene")
     elif scene_engine == "bert_srl":
         scene_seg = BertSRLSegmenter()
     elif scene_engine == "spacy":
         scene_seg = SpacySceneSegmenter()
+    elif scene_engine == "sat":
+        scene_seg = SaTSegmenter()
+    elif scene_engine == "scenegraph":
+        scene_seg = SceneGraphSegmenter()
     else:
         scene_seg = SceneSegmenter()
     
     if object_engine == "none" or object_engine == "":
         return scene_seg, None
         
-    if object_engine in ["qwen", "phi3", "qwen1.5"]:
+    if object_engine in ["qwen", "phi3", "qwen1.5", "qwen3b", "qwen7b", "qwen3-8b"]:
         from pipeline.retrieval.segmentation.lm_segmenter import LMSegmenter
         obj_seg = LMSegmenter(engine_name=object_engine, mode="object")
     elif object_engine == "spacy":
