@@ -29,38 +29,8 @@ from retrieval.loader import load_index
 from retrieval.temporal import smooth_features
 from retrieval.parser import parse_queries
 from retrieval.scorer import compute_similarity, aggregate_scores
-from retrieval.postprocess import apply_reranking
+
 from models.factory import get_embedding_model
-
-def route_asr_queries(tasks, engine_name="qwen"):
-    """Attach LLM ASR routes to tasks and return (router, routes)."""
-    try:
-        from pipeline.retrieval.routing.lm_router import LMRouter
-        lm_router = LMRouter(engine_name=engine_name)
-        routes = lm_router.route_batch([task["description"] for task in tasks])
-    except Exception as e:
-        print(f"[retrieve] Warning: Could not load LMRouter: {e}")
-        lm_router = None
-        routes = [{"Use_asr": False, "asr_query": None} for _ in tasks]
-
-    for task, route in zip(tasks, routes):
-        task["route"] = route
-
-    return lm_router, routes
-
-def build_asr_queries(tasks, routes):
-    audio_queries = []
-    audio_task_mapping = []
-
-    for ti, (task, route) in enumerate(zip(tasks, routes)):
-        asr_query = route.get("asr_query")
-        if route.get("Use_asr", False) and isinstance(asr_query, str) and asr_query.strip():
-            audio_queries.append(asr_query.strip())
-            audio_task_mapping.append((ti, 0, 0))
-        elif route.get("Use_asr", False):
-            task["route"] = {"Use_asr": False, "asr_query": None}
-
-    return audio_queries, audio_task_mapping
 
 
 def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
@@ -118,52 +88,6 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
     )
     
     return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K
-
-def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first_vids, first_ts, first_metadata, dev, N, K):
-    if not audio_queries:
-        print("[retrieve] No valid ASR queries from LMRouter; skipping Audio Modality.")
-        return [(task, []) for task in tasks]
-
-    print(f"[retrieve] Loading Audio Modality for {len(audio_queries)} ASR queries...")
-    audio_model_safe = args.audio_model.replace("/", "_")
-    audio_shard_dir = os.path.join(args.audio_shards, audio_model_safe)
-    
-    if not os.path.exists(audio_shard_dir):
-        raise SystemExit(f"[retrieve] Lỗi: Không tìm thấy thư mục {audio_shard_dir}. Hãy chạy scripts/extract_audio_features.sh trước!")
-        
-    audio_emb, audio_vids, audio_ts, _ = load_index(audio_shard_dir, meta_dir=None)
-    
-    # Verify alignment
-    if not np.array_equal(first_vids, audio_vids) or not np.array_equal(first_ts, audio_ts):
-        raise ValueError(f"[retrieve] Lỗi: Audio features không đồng bộ với Visual features! Hãy chạy lại extract_audio_features.sh")
-        
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
-        raise SystemExit("[retrieve] Please run: uv pip install sentence-transformers")
-        
-    print(f"[retrieve] Loading Audio Embedding Model: {args.audio_model}")
-    audio_model = SentenceTransformer(args.audio_model, device=dev)
-    
-    print("[retrieve] Encoding ASR Queries for Audio...")
-    Q_audio = audio_model.encode(audio_queries, convert_to_tensor=True, show_progress_bar=True, normalize_embeddings=True).to(dev).float()
-
-    print("[retrieve] Computing GPU Similarity for Audio...")
-    top_idx_a, top_val_a = compute_similarity([Q_audio], [audio_emb], len(audio_queries), N, K, dev)
-
-    print("[retrieve] Aggregating Scores for Audio...")
-    subset_tasks = [tasks[ti] for ti, _, _ in audio_task_mapping]
-    subset_mapping = [(i, sent_idx, seg_idx) for i, (_, sent_idx, seg_idx) in enumerate(audio_task_mapping)]
-    subset_candidates = aggregate_scores(
-        subset_mapping, top_idx_a, top_val_a, subset_tasks, first_vids, first_ts, audio_emb, first_metadata, False
-    )
-
-    all_candidates_audio = [(task, []) for task in tasks]
-    for (ti, _, _), (_, candidates) in zip(audio_task_mapping, subset_candidates):
-        all_candidates_audio[ti] = (tasks[ti], candidates)
-
-    return all_candidates_audio
-
 
 
 def save_submission(args, preds):
@@ -403,25 +327,7 @@ def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
                 f.write(f"  (No segmentation — full query used)\n")
             f.write("\n")
     
-    # --- routing.txt ---
-    with open(os.path.join(out_dir, "routing.txt"), "w", encoding="utf-8") as f:
-        for task, _ in all_candidates_final:
-            route = task.get("route", {})
-            f.write(f"Task ID: {task.get('task_id', '?')}\n")
-            f.write(f"Full Query: {task.get('description', '')}\n")
-            f.write(f"  Visual: ON (always)\n")
-                f.write(f"  ASR:    {'ON' if use_asr else 'OFF'}\n")
-                f.write(f"  ASR query: {route.get('asr_query') or 'NULL'}\n")
-                f.write(f"  OCR:    {'ON' if use_ocr else 'OFF'}\n")
-                f.write(f"  OCR query: {route.get('ocr_query') or 'NULL'}\n")
-            else:
-                f.write("  Visual: ON (always)\n")
-                f.write("  ASR:    OFF (no router - ASR not used)\n")
-                f.write("  ASR query: NULL\n")
-                f.write("  OCR:    OFF (no router - OCR not used)\n")
-                f.write("  OCR query: NULL\n")
-            f.write("\n")
-    
+
     print(f"[debug] wrote segments.txt and routing.txt to {out_dir}", flush=True)
 
 def run_retrieval(args):
@@ -442,24 +348,12 @@ def run_retrieval(args):
     visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
     all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K = visual_res
     
-    # 2. Route ASR needs, then process Audio Modality (Optional)
-    all_candidates_audio = None
-    lm_router = None
-    if args.use_audio:
-        lm_router, routes = route_asr_queries(tasks, engine_name="qwen")
-        audio_queries, audio_task_mapping = build_asr_queries(tasks, routes)
-        all_candidates_audio = process_audio_modality(
-            args, tasks, audio_task_mapping, audio_queries,
-            first_vids, first_ts, first_metadata, dev, N, K
-        )
-        if lm_router is not None and hasattr(lm_router, "cleanup"):
-            lm_router.cleanup()
+    # 2. (Removed Audio Modality)
 
     # 3. Postprocess Pipeline
     from pipeline.retrieval.postprocess import postprocess_pipeline
     preds, all_candidates_final = postprocess_pipeline(
-        args, tasks, all_candidates_visual, all_candidates_audio,
-        first_vids, first_ts, first_emb
+        args, tasks, all_candidates_visual, first_vids, first_ts, first_emb
     )
     
     # 4. Save results
@@ -485,10 +379,7 @@ def main():
     p.add_argument("--top-videos", type=int, default=10)
     p.add_argument("--cand-keyframes", type=int, default=2000)
     
-    # Audio args
-    p.add_argument("--use-audio", action="store_true", help="Enable audio retrieval and fuse with visual")
-    p.add_argument("--audio-shards", default=None, help="Path to audio index shards")
-    p.add_argument("--audio-model", default="sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace text embedding model for audio")
+
     
     # Toggles for metadata scoring and clustering
     p.add_argument("--use-sequential", action="store_true", help="Enable Sequential DP Matching with SaT")

@@ -140,12 +140,7 @@ def main():
     p.add_argument("--metadata", required=True)
     p.add_argument("--keyframes", required=True)
     p.add_argument("--vlms", nargs="+", required=True)
-    
-    # Audio args
-    p.add_argument("--use-audio", action="store_true")
-    p.add_argument("--audio-shards", default="")
-    p.add_argument("--audio-model", default="sentence-transformers/all-MiniLM-L6-v2")
-    
+        
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--cand-keyframes", type=int, default=2000)
     p.add_argument("--top-videos", type=int, default=10)

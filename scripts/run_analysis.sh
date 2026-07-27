@@ -41,7 +41,6 @@ export VLMS=(
 )
 
 export USE_SEQUENTIAL="true"
-export USE_AUDIO="false"
 export SCENE_SEGMENTER="qwen7b"
 export OBJECT_SEGMENTER="none"
 export AGG_MODE="prod"
@@ -65,7 +64,6 @@ echo "=========================================================="
 
 RETRIEVE_ARGS=""
 if [ "$USE_SEQUENTIAL" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-sequential"; fi
-if [ "$USE_AUDIO" = "true" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --use-audio"; fi
 if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segmenter $SCENE_SEGMENTER"; fi
 if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
@@ -82,7 +80,6 @@ PYTHONPATH=. uv run python pipeline/utils/analysis.py \
   --tasks $TASKS_FILE \
   --n $NUM_TASKS \
   --visual-shards $INDEX_DIR/visual \
-  --audio-shards $INDEX_DIR/audio \
   --metadata $INDEX_DIR/metadata \
   --keyframes $KF_DIR \
   --vlms "${VLMS[@]}" \
