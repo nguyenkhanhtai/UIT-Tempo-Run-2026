@@ -70,13 +70,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
     first_vids, first_ts, first_metadata, first_emb = None, None, None, None
     first_clip_model_name = None
     
-    # Flatten expanded queries
-    expanded_queries_flat = []
-    for t in tasks:
-        expanded_queries_flat.extend(t.get("expanded_queries", [t["description"]] * 5))
-    expanded_Q_embs = None
-
-    for idx_vlm, vlm_str in enumerate(args.vlms):
+    for vlm_str in args.vlms:
         model_name, pretrained = vlm_str.split(",")
         model_safe = model_name.replace("/", "_")
         pre_safe = pretrained.replace("/", "_") if pretrained else "none"
@@ -101,12 +95,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         clip = get_embedding_model(model_name, pretrained, device=args.device, precision=args.precision)
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
-        
-        # Encode Expanded Queries ONLY for the first model
-        if idx_vlm == 0 and expanded_queries_flat:
-            print(f"[retrieve] Encoding expanded queries with {vlm_str}...")
-            Q_exp = clip.encode_texts(expanded_queries_flat)
-            expanded_Q_embs = torch.from_numpy(Q_exp).to(dev).float()
+        all_models_Q.append(torch.from_numpy(Q).to(dev).float())
             
         # Free up RAM/VRAM
         del clip
@@ -128,7 +117,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         task_mapping, top_idx, top_val, tasks, first_vids, first_ts, first_emb, first_metadata, args.use_sequential
     )
     
-    return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs
+    return all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K
 
 def process_audio_modality(args, tasks, audio_task_mapping, audio_queries, first_vids, first_ts, first_metadata, dev, N, K):
     if not audio_queries:
@@ -240,10 +229,7 @@ def save_submission(args, preds):
             "AGG_MODE": os.environ.get("AGG_MODE"),
             "DP_MODE": os.environ.get("DP_MODE"),
             "POSITION_MODE": os.environ.get("POSITION_MODE"),
-            "MAX_PREDS_PER_VIDEO": os.environ.get("MAX_PREDS_PER_VIDEO"),
-            "OVERLAP_THRESHOLD": os.environ.get("OVERLAP_THRESHOLD"),
-            "USE_OD_RERANKING": os.environ.get("USE_OD_RERANKING"),
-            "OD_RERANKING_WEIGHT": os.environ.get("OD_RERANKING_WEIGHT")
+            "OVERLAP_THRESHOLD": os.environ.get("OVERLAP_THRESHOLD")
         }
     }
     
@@ -423,14 +409,7 @@ def save_debug_info(out_dir, tasks, task_segments, all_candidates_final):
             route = task.get("route", {})
             f.write(f"Task ID: {task.get('task_id', '?')}\n")
             f.write(f"Full Query: {task.get('description', '')}\n")
-            if "expanded_queries" in task:
-                f.write(f"Expanded Queries:\n")
-                for eq in task["expanded_queries"]:
-                    f.write(f"  - {eq}\n")
-            if route:
-                use_asr = route.get("Use_asr", False) and bool(route.get("asr_query"))
-                use_ocr = route.get("Use_ocr", False) and bool(route.get("ocr_query"))
-                f.write(f"  Visual: ON (always)\n")
+            f.write(f"  Visual: ON (always)\n")
                 f.write(f"  ASR:    {'ON' if use_asr else 'OFF'}\n")
                 f.write(f"  ASR query: {route.get('asr_query') or 'NULL'}\n")
                 f.write(f"  OCR:    {'ON' if use_ocr else 'OFF'}\n")
@@ -455,29 +434,13 @@ def run_retrieval(args):
     all_queries, task_mapping, task_segments = parse_queries(tasks, args.use_sequential, args.scene_segmenter, args.object_segmenter)
     print(f"[queries] extracted {len(all_queries)} object queries from {len(tasks)} tasks", flush=True)
         
-    if args.num_expansions > 0:
-        print("[retrieve] Generating Expanded Queries for Reranking...")
-        try:
-            from pipeline.retrieval.routing.qe_expander import QueryExpander
-            qe = QueryExpander(engine_name="qwen", num_expansions=args.num_expansions)
-            # We expand the original task description
-            tasks_desc = [t["description"] for t in tasks]
-            expanded_queries_list = qe.expand_batch(tasks_desc)
-            qe.cleanup()
-        except Exception as e:
-            print(f"[retrieve] Warning: Could not run QueryExpander: {e}")
-            expanded_queries_list = [[t["description"]] * args.num_expansions for t in tasks]
-    else:
-        expanded_queries_list = [[] for _ in tasks]
-        
     for ti, task in enumerate(tasks):
-        task["expanded_queries"] = expanded_queries_list[ti]
         task["overlap_threshold"] = args.overlap_threshold
         task["segments"] = task_segments.get(ti, {})
         
     # 1. Process Visual Modality
     visual_res = process_visual_modality(args, tasks, task_mapping, all_queries, dev)
-    all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K, expanded_Q_embs = visual_res
+    all_candidates_visual, first_vids, first_ts, first_metadata, first_emb, T_all, N, K = visual_res
     
     # 2. Route ASR needs, then process Audio Modality (Optional)
     all_candidates_audio = None
@@ -496,7 +459,7 @@ def run_retrieval(args):
     from pipeline.retrieval.postprocess import postprocess_pipeline
     preds, all_candidates_final = postprocess_pipeline(
         args, tasks, all_candidates_visual, all_candidates_audio,
-        first_vids, first_ts, first_emb, expanded_Q_embs
+        first_vids, first_ts, first_emb
     )
     
     # 4. Save results
@@ -533,7 +496,6 @@ def main():
     p.add_argument("--object-segmenter", type=str, default="regex", help="Segmenter engine for objects (regex, spacy, sat, scenegraph, none)")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
     p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
-    p.add_argument("--num-expansions", type=int, default=2, help="Number of queries to expand for reranking")
     p.add_argument("--overlap-threshold", type=int, default=5000, help="Overlap threshold in ms for postprocessing")
     
     args = p.parse_args()

@@ -55,17 +55,9 @@ export LM_CACHE="true"
 export SMOOTHING_WINDOW=0
 export SMOOTHING_SIGMA=1.0
 export DISCOUNT_FACTOR="0.8"
-export NUM_EXPANSIONS=0
 export MAX_SEQ_GAP_MS=6000
 export OVERLAP_THRESHOLD=0000
-export USE_OD_RERANKING="false"
-export OD_RERANKING_WEIGHT="0.3"
 export SLIDING_SIM_THRESHOLD="0.95"
-
-export USE_VLM_RESCORING="false"
-export VLM_EVAL_MODE="judge"
-export RESCORE_RANK=1
-export VLM_MODEL="llava-hf/llava-next-video-7b-hf"
 
 echo "=========================================================="
 echo "Running Retrieval for all queries in $TASKS_FILE"
@@ -78,7 +70,7 @@ if [ -n "$SCENE_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --scene-segment
 if [ -n "$OBJECT_SEGMENTER" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --object-segmenter $OBJECT_SEGMENTER"; fi
 if [ -n "$SMOOTHING_WINDOW" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-window $SMOOTHING_WINDOW"; fi
 if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sigma $SMOOTHING_SIGMA"; fi
-if [ -n "$NUM_EXPANSIONS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --num-expansions $NUM_EXPANSIONS"; fi
+
 if [ -n "$OVERLAP_THRESHOLD" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --overlap-threshold $OVERLAP_THRESHOLD"; fi
 if [ -n "$NUM_TASKS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --n $NUM_TASKS"; fi
 

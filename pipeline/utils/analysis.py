@@ -155,8 +155,7 @@ def main():
     p.add_argument("--scene-segmenter", type=str, default="regex", help="Engine to use for scene segmentation")
     p.add_argument("--object-segmenter", type=str, default="spacy", help="Engine to use for object segmentation")
     p.add_argument("--smoothing-window", type=int, default=3, help="Window size for Gaussian temporal smoothing")
-    p.add_argument("--smoothing-sigma", type=float, default=1.0)
-    p.add_argument("--num-expansions", type=int, default=2, help="Number of queries to expand for reranking")
+    p.add_argument("--smoothing-sigma", type=float, default=1.0, help="Sigma for Gaussian temporal smoothing")
     p.add_argument("--overlap-threshold", type=int, default=5000, help="Overlap threshold in ms for postprocessing")
     args = p.parse_args()
 

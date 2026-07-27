@@ -84,8 +84,6 @@ export CAPTION_MODEL="microsoft/Florence-2-large"
 # --- CÁC TÙY CHỌN DÙNG METADATA ĐỂ CHẤM ĐIỂM VÀ LỌC KẾT QUẢ ---
 export USE_OCR="false"
 export USE_OD="false"
-export USE_OD_RERANKING="false"
-export OD_RERANKING_WEIGHT="0.3"
 export SLIDING_SIM_THRESHOLD="0.95"
 export USE_CAPTIONING="false"
 export USE_CLUSTERING="false"
