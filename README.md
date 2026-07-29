@@ -1,4 +1,4 @@
-# Video Retrieval Pipeline - SymbCoT
+# Video Retrieval Pipeline
 
 ## 1. Giới thiệu ngắn gọn về phương pháp
 Repository này chứa toàn bộ pipeline từ đầu đến cuối cho hệ thống Video Retrieval. Phương pháp của chúng tôi kết hợp trích xuất đặc trưng hình ảnh (Visual Embeddings) bằng các mô hình VLM tiên tiến (như OpenCLIP, SigLIP, EVA-CLIP, X-CLIP, PE-Core) và sử dụng Mô hình Ngôn ngữ Lớn (LLM - Qwen 2.5) để phân tích và chia nhỏ các truy vấn (query segmentation). Quá trình truy xuất được thực hiện theo từng chunk để đảm bảo tính chịu lỗi (fault-tolerant) cao, giúp phục hồi dễ dàng khi có sự cố.
@@ -60,6 +60,10 @@ Dự án sử dụng `uv` để quản lý môi trường và dependency một c
 - Các tài nguyên khác (nếu có yêu cầu từ script) có thể được tải thông qua thư viện `gdown` đã được cài đặt sẵn trong dự án.
 
 ## 6. Mô tả dữ liệu đầu vào
+
+> [!IMPORTANT]
+> **Vị trí đặt Dataset:** Thư mục `dataset` **bắt buộc** phải được đặt ở bên trong thư mục chứa mã nguồn (codebase) trước khi chạy pipeline. Các đường dẫn trong cấu hình mặc định đều là đường dẫn tương đối trỏ vào thư mục `dataset/` này.
+
 Chương trình cần nhận đường dẫn dữ liệu thông qua tham số dòng lệnh hoặc tệp cấu hình.
 Cấu trúc dữ liệu video dự kiến:
 ```text
