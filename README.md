@@ -62,7 +62,7 @@ Dự án sử dụng `uv` để quản lý môi trường và dependency một c
 ## 6. Mô tả dữ liệu đầu vào
 
 > [!IMPORTANT]
-> **Vị trí đặt Dataset:** Thư mục `dataset` **bắt buộc** phải được đặt ở bên trong thư mục chứa mã nguồn (codebase) trước khi chạy pipeline. Các đường dẫn trong cấu hình mặc định đều là đường dẫn tương đối trỏ vào thư mục `dataset/` này.
+> **Vị trí đặt Dataset:** Bạn có thể đặt thư mục chứa dataset ở bất kỳ vị trí nào trên máy tính. Chỉ cần truyền đúng đường dẫn thư mục đó vào biến `--video-root` bên trong file `scripts/run_pipeline.sh` để cấu hình.
 
 Chương trình cần nhận đường dẫn dữ liệu thông qua tham số dòng lệnh hoặc tệp cấu hình.
 Cấu trúc dữ liệu video dự kiến:
@@ -143,4 +143,4 @@ Sau khi chạy xong, bạn có thể xem trực quan kết quả truy xuất b�
 ```bash
 uv run python visualizer/app.py
 ```
-Mở trình duyệt và truy cập vào `http://localhost:5000` để sử dụng UI.
+Mở trình duyệt và truy cập vào `http://localhost:5050` để sử dụng UI.
