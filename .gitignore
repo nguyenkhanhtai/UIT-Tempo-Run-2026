@@ -10,6 +10,7 @@ keyframes/
 __pycache__/
 *.pyc
 *.json
+*.jsonl
 *.conf
 # dev/editor cruft — never ship
 *.bak
