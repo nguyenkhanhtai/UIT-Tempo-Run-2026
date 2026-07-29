@@ -127,9 +127,18 @@ Trong dự án có rất nhiều file script nhằm phục vụ các mục đíc
 - **`upload_to_drive.py`**: Script hỗ trợ upload file submission lên Google Drive sau khi chạy xong.
 
 ## 9. Lệnh chạy toàn bộ pipeline
-Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần gọi master script. Các tham số chạy cho toàn pipeline đã được thiết lập sẵn trong file này thành từng dòng rất rõ ràng và dễ tùy biến:
+Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần gọi master script. Các tham số chạy cho toàn pipeline đã được thiết lập sẵn trong file này thành từng dòng rất rõ ràng và dễ tùy biến.
+
+Bạn có thể gọi file script trực tiếp (sẽ sử dụng cài đặt mặc định):
 ```bash
 ./scripts/run_pipeline.sh
+```
+
+Hoặc cấu hình linh hoạt thông qua các tham số truyền vào:
+```bash
+./scripts/run_pipeline.sh \
+    --video-root "đường_dẫn_chứa_video" \          # đường dẫn tới thư mục <dataset> ở mục 6
+    --task-file "đường_dẫn_tới_file_task.jsonl"    # đường dẫn tới file task jsonl
 ```
 
 ## 10. Các tham số mặc định

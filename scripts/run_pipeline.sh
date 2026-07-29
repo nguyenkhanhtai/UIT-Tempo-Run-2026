@@ -6,6 +6,18 @@ trap 'echo "Cleaning up background processes..."; kill $(jobs -p) 2>/dev/null; e
 
 SCRIPT_DIR="$(dirname "$0")"
 
+VIDEO_ROOT="dataset/Video_V3C"
+TASK_FILE="dataset/private_round_tasks.jsonl"
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --video-root) VIDEO_ROOT="$2"; shift ;;
+        --task-file) TASK_FILE="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 echo "Starting Pipeline..."
 
 # ==========================================
@@ -16,7 +28,7 @@ echo "Starting Pipeline..."
 # --fps       : Tần số trích xuất (1 frame mỗi giây)
 # --shards    : Số lượng tiến trình chạy song song
 bash "$SCRIPT_DIR/extract_keyframes.sh" \
-    --video-root dataset/Video_V3C \
+    --video-root "$VIDEO_ROOT" \
     --fps 1 \
     --shards 6
 
@@ -46,7 +58,7 @@ bash "$SCRIPT_DIR/extract_metadata.sh"
 # --max-preds : Số lượng video kết quả trả về tối đa cho mỗi truy vấn
 # --num-chunks: Số lượng block (chunk) chia nhỏ tiến trình để tránh tràn RAM
 bash "$SCRIPT_DIR/retrieval.sh" \
-    --task-file dataset/private_round_tasks.jsonl \
+    --task-file "$TASK_FILE" \
     --num-tasks 700 \
     --fps 1 \
     --use-sequential "true" \
