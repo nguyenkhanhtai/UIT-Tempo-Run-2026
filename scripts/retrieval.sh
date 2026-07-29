@@ -7,6 +7,34 @@ export TASKS_FILE="dataset/private_round_tasks.jsonl"
 export NUM_TASKS=700
 export FPS=1
 
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --task-file) TASKS_FILE="$2"; shift ;;
+        --num-tasks) NUM_TASKS="$2"; shift ;;
+        --fps) FPS="$2"; shift ;;
+        --use-sequential) USE_SEQUENTIAL="$2"; shift ;;
+        --scene-segmenter) SCENE_SEGMENTER="$2"; shift ;;
+        --object-segmenter) OBJECT_SEGMENTER="$2"; shift ;;
+        --agg-mode) AGG_MODE="$2"; shift ;;
+        --dp-mode) DP_MODE="$2"; shift ;;
+        --position-mode) POSITION_MODE="$2"; shift ;;
+        --max-preds) MAX_PREDS_PER_VIDEO="$2"; shift ;;
+        --clip-to-zero) CLIP_TO_ZERO="$2"; shift ;;
+        --main-query-weight) MAIN_QUERY_WEIGHT="$2"; shift ;;
+        --split-query) SPLIT_QUERY="$2"; shift ;;
+        --lm-cache) LM_CACHE="$2"; shift ;;
+        --smoothing-window) SMOOTHING_WINDOW="$2"; shift ;;
+        --smoothing-sigma) SMOOTHING_SIGMA="$2"; shift ;;
+        --discount-factor) DISCOUNT_FACTOR="$2"; shift ;;
+        --max-seq-gap) MAX_SEQ_GAP_MS="$2"; shift ;;
+        --overlap-threshold) OVERLAP_THRESHOLD="$2"; shift ;;
+        --sliding-sim-threshold) SLIDING_SIM_THRESHOLD="$2"; shift ;;
+        --num-chunks) NUM_CHUNKS="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 if [ "$FPS" = "0" ]; then
   export METHOD="keyframe"
 else
@@ -34,10 +62,6 @@ export VLMS=(
   # 4. Dòng EVA-CLIP
   # "EVA02-B-16,merged2b_s8b_b131k"
   # "EVA02-L-14,merged2b_s4b_b131k"
-  
-  # 5. Dòng Video VLM (X-CLIP)
-  # "microsoft/xclip-base-patch32,none"
-  # "microsoft/xclip-large-patch14,none"
 )
 
 export USE_SEQUENTIAL="true"

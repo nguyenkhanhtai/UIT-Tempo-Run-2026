@@ -4,9 +4,23 @@ set -e
 # Catch Ctrl+C and kill background jobs
 trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
 
-export FPS=0
+export FPS=1
 export SHARDS=2
 export LIMIT_PER_SHARD=0
+export CLIP_BATCH_SIZE=256
+export PRECISION="fp16"
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --fps) FPS="$2"; shift ;;
+        --shards) SHARDS="$2"; shift ;;
+        --limit) LIMIT_PER_SHARD="$2"; shift ;;
+        --batch-size) CLIP_BATCH_SIZE="$2"; shift ;;
+        --precision) PRECISION="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
 
 if [ "$FPS" = "0" ]; then
   export METHOD="keyframe"
@@ -35,14 +49,7 @@ export VLMS=(
   # 4. Dòng EVA-CLIP
   # "EVA02-B-16,merged2b_s8b_b131k"
   # "EVA02-L-14,merged2b_s4b_b131k"
-  
-  # 5. Dòng Video VLM (X-CLIP)
-  # "microsoft/xclip-base-patch32,none"
-  # "microsoft/xclip-large-patch14,none"
 )
-export PRECISION="fp16"
-export TEMPORAL_WINDOW=8
-export CLIP_BATCH_SIZE=1024
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l || echo 1)
@@ -65,7 +72,6 @@ for VLM in "${VLMS[@]}"; do
     uv run python pipeline/extract_embed.py \
       --keyframes $KF_DIR --out $INDEX_DIR --device "cuda:${GPU_ID}" \
       --model "$MODEL" --pretrained "$PRETRAINED" --precision $PRECISION \
-      --temporal-window $TEMPORAL_WINDOW \
       --shard-index $i --shard-count $SHARDS --batch-size $CLIP_BATCH_SIZE --limit $LIMIT_PER_SHARD &
   done
   wait

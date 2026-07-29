@@ -4,11 +4,32 @@
 Repository này chứa toàn bộ pipeline từ đầu đến cuối cho hệ thống Video Retrieval. Phương pháp của chúng tôi kết hợp trích xuất đặc trưng hình ảnh (Visual Embeddings) bằng các mô hình VLM tiên tiến (như OpenCLIP, SigLIP, EVA-CLIP, X-CLIP, PE-Core) và sử dụng Mô hình Ngôn ngữ Lớn (LLM - Qwen 2.5) để phân tích và chia nhỏ các truy vấn (query segmentation). Quá trình truy xuất được thực hiện theo từng chunk để đảm bảo tính chịu lỗi (fault-tolerant) cao, giúp phục hồi dễ dàng khi có sự cố.
 
 ## 2. Mô tả cấu trúc repository
-- `dataset/`: Thư mục chứa dữ liệu video gốc (VD: V3C) và file truy vấn (tasks).
-- `scripts/`: Chứa các shell script để chạy từng bước trong pipeline (trích xuất keyframe, embedding, metadata, và truy xuất).
-- `visualizer/`: Chứa mã nguồn cho ứng dụng web trực quan hóa kết quả truy xuất.
-- `submission/`: Thư mục lưu kết quả cuối cùng được tạo tự động sau khi chạy pipeline.
-- `keyframes/` & `artifacts/`: Nơi lưu trữ các frame được trích xuất và các vector đặc trưng (embeddings) sau khi xử lý.
+Cấu trúc tổng quan của dự án được tổ chức như sau:
+```text
+UIT-Tempo-Run-2026/
+├── dataset/                     # Chứa dữ liệu đầu vào của hệ thống
+│   ├── V3C1/                    # Dữ liệu video V3C1
+│   │   └── videos/              # Chứa các file mp4/webm...
+│   ├── V3C2/                    # Dữ liệu video V3C2
+│   │   └── videos/              # Chứa các file mp4/webm...
+│   ├── public_round_tasks.jsonl # File truy vấn vòng public
+│   └── private_round_tasks.jsonl# File truy vấn vòng private
+├── scripts/                     # Các shell script thực thi tự động pipeline
+│   ├── run_pipeline.sh          # Master script chạy tự động toàn bộ quy trình từ A-Z
+│   ├── extract_keyframes.sh     # Bước 1: Trích xuất frame (hình ảnh) từ video gốc
+│   ├── extract_embeddings.sh    # Bước 2: Dùng CLIP chuyển đổi hình ảnh thành vector đặc trưng
+│   ├── extract_metadata.sh      # Bước 3: Trích xuất thêm metadata phụ trợ (như OCR, Object)
+│   └── retrieval.sh             # Bước 4: So khớp truy vấn văn bản, tìm video và tạo output
+├── pipeline/                    # Mã nguồn chính chứa logic xử lý thuật toán (Python)
+├── models/                      # Mã nguồn khởi tạo và định nghĩa các mô hình VLM, LLM
+├── visualizer/                  # Công cụ Web UI dùng để trực quan hoá kết quả truy xuất
+│   └── app.py                   # Script khởi chạy web app
+├── submission/                  # Thư mục chứa kết quả nộp bài cuối cùng (submission file)
+├── keyframes/                   # Dữ liệu trung gian lưu trữ các ảnh được trích xuất (Stage 1)
+├── artifacts/                   # Dữ liệu vector siêu dữ liệu nén (.npz) và file index (Stage 2)
+├── pyproject.toml               # File quản lý phiên bản thư viện Python (dùng uv)
+└── README.md                    # Tài liệu hướng dẫn sử dụng (File này)
+```
 
 ## 3. Yêu cầu phần cứng và phần mềm
 **Phần cứng:**
@@ -39,9 +60,23 @@ Dự án sử dụng `uv` để quản lý môi trường và dependency một c
 - Các tài nguyên khác (nếu có yêu cầu từ script) có thể được tải thông qua thư viện `gdown` đã được cài đặt sẵn trong dự án.
 
 ## 6. Mô tả dữ liệu đầu vào
-Cần đảm bảo dữ liệu được đặt đúng định dạng và cấu trúc thư mục trước khi chạy pipeline:
-1. **Video Dataset**: Đặt các thư mục chứa video gốc (ví dụ: `Video_V3C`) vào đường dẫn `dataset/Video_V3C/`.
-2. **Tasks File**: Đặt file JSONL chứa các câu truy vấn/task đánh giá tại `dataset/private_round_tasks.jsonl`.
+Chương trình cần nhận đường dẫn dữ liệu thông qua tham số dòng lệnh hoặc tệp cấu hình.
+Cấu trúc dữ liệu video dự kiến:
+```text
+dataset/
+├── V3C1/
+│   └── videos/
+│       └── ...
+└── V3C2/
+    └── videos/
+        └── ...
+```
+
+File task của từng vòng:
+- `public_round_tasks.jsonl`
+- `private_round_tasks.jsonl`
+
+Mỗi dòng trong file task là một JSON object:
 
 ## 7. Mô tả kết quả đầu ra
 Sau khi pipeline chạy kết thúc, quá trình tự động dọn dẹp các file tạm sẽ diễn ra và kết quả được tạo trong thư mục đánh số tự động (ví dụ: `submission/001/`).
@@ -51,14 +86,38 @@ Các file được tạo bao gồm:
 - `detailed_submission.json`: Chứa các metadata siêu dữ liệu chi tiết và thông tin debug cho từng query.
 
 ## 8. Hướng dẫn chạy từng script
-Bạn có thể linh hoạt chạy riêng lẻ từng bước bằng các script trong thư mục `scripts/`:
-1. **`./scripts/extract_keyframes.sh`**: Lấy mẫu (sample) các frame từ video gốc bằng công cụ FFmpeg.
-2. **`./scripts/extract_embeddings.sh`**: Tính toán embedding (đặc trưng hình ảnh) bằng các mô hình VLM.
-3. **`./scripts/extract_metadata.sh`**: Trích xuất metadata đa phương thức bổ sung (ví dụ: OCR/Object Detection) nếu được bật.
-4. **`./scripts/retrieval.sh`**: Chạy logic truy xuất chính. Đọc file task, chia nhỏ truy vấn bằng LLM, tính toán độ tương đồng giữa text-video và hợp nhất các chunk kết quả.
+Bạn có thể linh hoạt chạy riêng lẻ từng bước bằng các script trong thư mục `scripts/` bằng cách truyền trực tiếp các tham số dòng lệnh thay vì sửa code bên trong file:
+
+1. **Trích xuất frame** (`extract_keyframes.sh`):
+   ```bash
+   ./scripts/extract_keyframes.sh \
+       --video-root dataset/Video_V3C \
+       --fps 1 \
+       --shards 12
+   ```
+
+2. **Tính toán embedding** (`extract_embeddings.sh`):
+   ```bash
+   ./scripts/extract_embeddings.sh \
+       --fps 1 \
+       --batch-size 1024 \
+       --shards 2
+   ```
+
+3. **Trích xuất metadata** (`extract_metadata.sh`): Trích xuất metadata đa phương thức bổ sung (ví dụ: OCR/Object Detection) nếu được bật.
+   ```bash
+   ./scripts/extract_metadata.sh
+   ```
+
+4. **Chạy truy xuất và tạo submission** (`retrieval.sh`):
+   ```bash
+   ./scripts/retrieval.sh \
+       --task-file dataset/private_round_tasks.jsonl \
+       --fps 1
+   ```
 
 ## 9. Lệnh chạy toàn bộ pipeline
-Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần chạy duy nhất master script sau:
+Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần gọi master script. Các tham số chạy cho toàn pipeline đã được thiết lập sẵn trong file này thành từng dòng rất rõ ràng và dễ tùy biến:
 ```bash
 ./scripts/run_pipeline.sh
 ```

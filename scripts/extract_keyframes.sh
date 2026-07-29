@@ -9,6 +9,17 @@ export FPS=1
 export SHARDS=12
 export LIMIT_PER_SHARD=0
 
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --dataset-root|--video-root) DATASET_ROOT="$2"; shift ;;
+        --fps) FPS="$2"; shift ;;
+        --shards) SHARDS="$2"; shift ;;
+        --limit) LIMIT_PER_SHARD="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 if [ "$FPS" = "0" ]; then
   export METHOD="keyframe"
 else

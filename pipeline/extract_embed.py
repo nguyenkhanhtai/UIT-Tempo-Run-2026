@@ -56,7 +56,6 @@ def main():
     ap.add_argument("--shard-index", type=int, default=0)
     ap.add_argument("--shard-count", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0, help="debug: cap #videos")
-    ap.add_argument("--temporal-window", type=int, default=1, help="Num frames per snippet for video models")
     args = ap.parse_args()
 
     # Save shards in a model-specific subdirectory
@@ -155,20 +154,7 @@ def main():
             frames_expected[vid] = len(imgs)
             
             for i in range(len(imgs)):
-                if getattr(clip, 'is_video_model', False) and args.temporal_window > 1:
-                    start_idx = max(0, i - (args.temporal_window // 2))
-                    end_idx = start_idx + args.temporal_window
-                    if end_idx > len(imgs):
-                        end_idx = len(imgs)
-                        start_idx = max(0, end_idx - args.temporal_window)
-                    snippet = imgs[start_idx:end_idx]
-                    # If still less than temporal_window (very short video), pad with last frame
-                    while len(snippet) < args.temporal_window and len(snippet) > 0:
-                        snippet.append(snippet[-1])
-                    if not snippet: snippet = [imgs[i]] # fallback
-                    global_batch.append((vid, ts[i], snippet))
-                else:
-                    global_batch.append((vid, ts[i], imgs[i]))
+                global_batch.append((vid, ts[i], imgs[i]))
                     
                 if len(global_batch) >= args.batch_size:
                     process_global_batch(global_batch)
