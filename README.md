@@ -85,36 +85,33 @@ Các file được tạo bao gồm:
 - `submission.zip`: File nén của bản nộp (submission).
 - `detailed_submission.json`: Chứa các metadata siêu dữ liệu chi tiết và thông tin debug cho từng query.
 
-## 8. Hướng dẫn chạy từng script
-Bạn có thể linh hoạt chạy riêng lẻ từng bước bằng các script trong thư mục `scripts/` bằng cách truyền trực tiếp các tham số dòng lệnh thay vì sửa code bên trong file:
+## 8. Chi tiết chức năng của từng file Script
+Trong dự án có rất nhiều file script nhằm phục vụ các mục đích khác nhau. Dưới đây là giải thích chi tiết cho từng file:
 
-1. **Trích xuất frame** (`extract_keyframes.sh`):
-   ```bash
-   ./scripts/extract_keyframes.sh \
-       --video-root dataset/Video_V3C \
-       --fps 1 \
-       --shards 12
-   ```
+### 8.1 Các Script Thu thập và Chuẩn bị Dữ liệu
+- **`download_dataset.py`**: Hỗ trợ tải dataset tự động. **Lưu ý:** Nếu bạn đã có sẵn dataset ở trong máy theo đúng cấu trúc yêu cầu thì không cần chạy script này để tải lại nữa.
+- **`extract_audio_features.sh`**: Dùng để trích xuất đặc trưng âm thanh. **(0 use - Hiện tại không sử dụng trong pipeline)**
+- **`extract_transcript.sh`**: Dùng để trích xuất văn bản từ video (speech-to-text). **(0 use - Hiện tại không sử dụng trong pipeline)**
+- **`extract_metadata.sh`**: Dùng để trích xuất metadata phụ trợ như OCR/Object Detection. **(0 use - Hiện tại không sử dụng trong pipeline)**
 
-2. **Tính toán embedding** (`extract_embeddings.sh`):
-   ```bash
-   ./scripts/extract_embeddings.sh \
-       --fps 1 \
-       --batch-size 1024 \
-       --shards 2
-   ```
+### 8.2 Các Script Xử lý Cốt lõi (Core Pipeline)
+1. **`extract_keyframes.sh`**: 
+   Dùng FFmpeg để cắt video thành các frame hình ảnh rời rạc (keyframes) dựa trên chỉ số FPS được cấu hình.
+2. **`extract_embeddings.sh`**: 
+   Chạy các mô hình VLM (như CLIP) để chuyển đổi các frame hình ảnh đã cắt ở bước trên thành các vector đặc trưng (embeddings) số thực.
+3. **`retrieval.sh`**: 
+   Script chính để chạy thuật toán truy xuất. Nó sẽ nạp các câu query, phân tách ngữ nghĩa, tính toán độ tương đồng với video và cho ra thứ hạng kết quả.
+4. **`run_pipeline.sh`**: 
+   Master script tự động gọi lần lượt các script trên theo đúng thứ tự. Nơi chứa mọi tham số cấu hình chung.
+5. **`run_chunked.py`**:
+   Script Python lõi được `retrieval.sh` gọi ở bên dưới. **Cơ chế hoạt động:** Thay vì nạp toàn bộ danh sách truy vấn và video vào RAM (rất dễ gây quá tải - OOM), script này sẽ "cắt nhỏ" danh sách truy vấn thành nhiều đoạn (chunks). Việc xử lý và lưu file theo từng chunk sẽ giúp hệ thống chịu lỗi cực kỳ tốt. Nếu tiến trình bị crash giữa chừng, lần chạy sau nó sẽ tự động bỏ qua các chunk đã xử lý xong và chạy tiếp từ đoạn bị đứt (resumable).
+6. **`clean_ram.py`**:
+   Tiện ích nhỏ được gọi sau mỗi lần xử lý xong một khối lượng lớn dữ liệu để giải phóng RAM/VRAM rác cho hệ thống.
 
-3. **Trích xuất metadata** (`extract_metadata.sh`): Trích xuất metadata đa phương thức bổ sung (ví dụ: OCR/Object Detection) nếu được bật.
-   ```bash
-   ./scripts/extract_metadata.sh
-   ```
-
-4. **Chạy truy xuất và tạo submission** (`retrieval.sh`):
-   ```bash
-   ./scripts/retrieval.sh \
-       --task-file dataset/private_round_tasks.jsonl \
-       --fps 1
-   ```
+### 8.3 Các Script Phụ trợ khác
+- **`run_analysis.sh`**: Dùng để chạy đánh giá và phân tích kết quả sau khi tạo submission.
+- **`visualize.sh`** & **`viewer.py`**: Khởi chạy ứng dụng Web UI để người dùng có thể xem kết quả trực quan trên trình duyệt.
+- **`upload_to_drive.py`**: Script hỗ trợ upload file submission lên Google Drive sau khi chạy xong.
 
 ## 9. Lệnh chạy toàn bộ pipeline
 Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần gọi master script. Các tham số chạy cho toàn pipeline đã được thiết lập sẵn trong file này thành từng dòng rất rõ ràng và dễ tùy biến:
