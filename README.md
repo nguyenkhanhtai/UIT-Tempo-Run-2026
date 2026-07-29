@@ -82,6 +82,15 @@ File task của từng vòng:
 
 Mỗi dòng trong file task là một JSON object:
 
+```json
+{
+  "task_id": "T0001",
+  "description": "a man in a red jacket walks across a snowy street at night",
+  "submission_type": "temporal_video_retrieval",
+  "max_predictions": 10
+}
+```
+
 ## 7. Mô tả kết quả đầu ra
 Sau khi pipeline chạy kết thúc, quá trình tự động dọn dẹp các file tạm sẽ diễn ra và kết quả được tạo trong thư mục đánh số tự động (ví dụ: `submission/001/`).
 Các file được tạo bao gồm:
