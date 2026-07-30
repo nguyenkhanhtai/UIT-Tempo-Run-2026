@@ -8,11 +8,17 @@ SCRIPT_DIR="$(dirname "$0")"
 
 VIDEO_ROOT="dataset/Video_V3C"
 TASK_FILE="dataset/private_round_tasks.jsonl"
+KEYFRAME_SHARDS=6
+EMBEDDING_SHARDS=2
+BATCH_SIZE=256
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --video-root) VIDEO_ROOT="$2"; shift ;;
         --task-file) TASK_FILE="$2"; shift ;;
+        --keyframe-shards) KEYFRAME_SHARDS="$2"; shift ;;
+        --embedding-shards) EMBEDDING_SHARDS="$2"; shift ;;
+        --batch-size) BATCH_SIZE="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -30,7 +36,7 @@ echo "Starting Pipeline..."
 bash "$SCRIPT_DIR/extract_keyframes.sh" \
     --video-root "$VIDEO_ROOT" \
     --fps 1 \
-    --shards 6
+    --shards "$KEYFRAME_SHARDS"
 
 # ==========================================
 # BƯỚC 2: CHẠY MÔ HÌNH VLM ĐỂ TẠO VECTOR
@@ -41,8 +47,8 @@ bash "$SCRIPT_DIR/extract_keyframes.sh" \
 # --shards    : Số lượng tiến trình chạy song song (do load model nặng nên để ít)
 bash "$SCRIPT_DIR/extract_embeddings.sh" \
     --fps 1 \
-    --batch-size 256 \
-    --shards 2
+    --batch-size "$BATCH_SIZE" \
+    --shards "$EMBEDDING_SHARDS"
 
 # ==========================================
 # BƯỚC 3: TRÍCH XUẤT METADATA PHỤ TRỢ (NẾU CÓ)
