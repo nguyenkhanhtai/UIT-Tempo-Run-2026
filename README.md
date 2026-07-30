@@ -138,7 +138,10 @@ Hoặc cấu hình linh hoạt thông qua các tham số truyền vào:
 ```bash
 ./scripts/run_pipeline.sh \
     --video-root "đường_dẫn_chứa_video" \          # đường dẫn tới thư mục <dataset> ở mục 6
-    --task-file "đường_dẫn_tới_file_task.jsonl"    # đường dẫn tới file task jsonl
+    --task-file "đường_dẫn_tới_file_task.jsonl" \  # đường dẫn tới file task jsonl
+    --keyframe-shards 6 \                          # số lượng tiến trình trích xuất hình ảnh chạy song song
+    --embedding-shards 2 \                         # số lượng tiến trình VLM chạy song song (Lưu ý: Nếu bị lỗi OOM - Out of Memory, hãy giảm số này xuống)
+    --batch-size 256                               # số lượng ảnh xử lý cùng lúc (giảm nếu tràn VRAM)
 ```
 
 ## 10. Các tham số mặc định
