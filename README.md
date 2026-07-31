@@ -158,7 +158,7 @@ Các tham số cấu hình chính được định nghĩa trong `scripts/retriev
 
 ## 11. Các lỗi hoặc giới hạn đã biết
 - **Lỗi FFmpeg không tìm thấy**: Pipeline ở bước trích xuất keyframe sẽ báo lỗi nếu `ffmpeg` chưa được cài đặt và chưa có trong biến môi trường hệ thống (PATH).
-- **Out of Memory (OOM)**: Việc chạy đồng thời LLM nặng (`qwen7b`) và các VLM kích thước lớn có thể gây lỗi tràn VRAM trên các GPU phổ thông. Hướng giải quyết: cấu hình dùng VLM nhẹ hơn trong `retrieval.sh` hoặc giảm kích thước batch.
+- **Out of Memory (OOM) khi dùng PE-Core**: Việc chạy đồng thời LLM nặng (`qwen7b`) và các VLM kích thước lớn có thể gây lỗi tràn VRAM. Đặc biệt ở bước trích xuất embedding, mô hình `PE-Core` rất nặng. **Hướng giải quyết:** Khuyến nghị chạy hệ thống trên nhiều GPU (multi-GPU) hoặc dùng GPU có nhiều VRAM (>= 24GB). Nếu vẫn gặp lỗi, bạn nên giảm `batch-size` và `embedding-shards` xuống.
 - **Tiến trình gián đoạn**: Quá trình Retrieval lưu tạm (checkpoint) theo từng chunk. Nếu bị gián đoạn, bạn có thể chạy lại `retrieval.sh`, hệ thống sẽ tự động resume (tiếp tục) từ các chunk đã chạy xong mà không cần tính toán lại từ đầu.
 
 ---
