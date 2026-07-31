@@ -65,8 +65,7 @@ def process_visual_modality(args, tasks, task_mapping, all_queries, dev):
         clip = get_embedding_model(model_name, pretrained, device=args.device, precision=args.precision)
         Q = clip.encode_texts(all_queries)      # [T_all, D] fp32
         all_models_Q.append(torch.from_numpy(Q).to(dev).float())
-        all_models_Q.append(torch.from_numpy(Q).to(dev).float())
-            
+        
         # Free up RAM/VRAM
         del clip
         import gc
