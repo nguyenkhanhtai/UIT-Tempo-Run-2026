@@ -5,9 +5,9 @@ set -e
 trap 'JOBS=$(jobs -p); if [ -n "$JOBS" ]; then kill $JOBS 2>/dev/null || true; fi; exit' SIGINT SIGTERM
 
 export FPS=1
-export SHARDS=2
+export SHARDS=1
 export LIMIT_PER_SHARD=0
-export CLIP_BATCH_SIZE=256
+export CLIP_BATCH_SIZE=128
 export PRECISION="fp16"
 
 while [[ "$#" -gt 0 ]]; do
