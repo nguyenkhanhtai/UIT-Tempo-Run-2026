@@ -33,11 +33,11 @@ UIT-Tempo-Run-2026/
 
 ## 3. Yêu cầu phần cứng và phần mềm
 **Phần cứng:**
-- GPU có dung lượng VRAM lớn (khuyến nghị >= 16GB) để chạy các mô hình VLM và LLM (như Qwen 7B).
+- GPU có dung lượng VRAM lớn (yêu cầu/khuyến nghị >= 24GB) để có thể chạy mô hình VLM và LLM (Qwen 7B) mượt mà mà không bị lỗi Out of Memory.
 - Ổ cứng có dung lượng lớn để lưu trữ dataset video gốc, keyframes và các feature vector.
 
 **Phần mềm:**
-- Hệ điều hành: Linux/Windows (hỗ trợ bash script)
+- Môi trường chạy: Ubuntu (khuyến nghị) hoặc các bản phân phối Linux khác (hỗ trợ bash script).
 - Python `>= 3.11`
 - CUDA 12.4 (được cấu hình trong `pyproject.toml` cho PyTorch)
 - `ffmpeg` (yêu cầu cài đặt sẵn để trích xuất keyframe từ video gốc)
@@ -148,8 +148,8 @@ Hoặc cấu hình linh hoạt thông qua các tham số truyền vào:
     --video-root "đường_dẫn_chứa_video" \          # đường dẫn tới thư mục <dataset> ở mục 6
     --task-file "đường_dẫn_tới_file_task.jsonl" \  # đường dẫn tới file task jsonl
     --keyframe-shards 6 \                          # số lượng tiến trình trích xuất hình ảnh chạy song song
-    --embedding-shards 2 \                         # số lượng tiến trình VLM chạy song song (Lưu ý: Nếu bị lỗi OOM - Out of Memory, hãy giảm số này xuống)
-    --batch-size 256                               # số lượng ảnh xử lý cùng lúc (giảm nếu tràn VRAM)
+    --embedding-shards 1 \                         # số lượng tiến trình VLM chạy song song (Lưu ý: tăng để chạy nhanh hơn, nếu bị lỗi OOM - Out of Memory, hãy giảm số này xuống)
+    --batch-size 128                               # số lượng ảnh xử lý cùng lúc (tăng để chạy nhanh hơn, giảm nếu tràn VRAM)
 ```
 
 ## 10. Các tham số mặc định
