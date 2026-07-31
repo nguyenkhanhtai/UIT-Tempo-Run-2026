@@ -9,8 +9,8 @@ SCRIPT_DIR="$(dirname "$0")"
 VIDEO_ROOT="dataset/Video_V3C"
 TASK_FILE="dataset/private_round_tasks.jsonl"
 KEYFRAME_SHARDS=6
-EMBEDDING_SHARDS=2
-BATCH_SIZE=256
+EMBEDDING_SHARDS=1
+BATCH_SIZE=128
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
