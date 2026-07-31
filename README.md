@@ -50,9 +50,14 @@ Dự án sử dụng `uv` để quản lý môi trường và dependency một c
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 2. **Cài đặt dependencies**:
-   Chạy lệnh sau ở thư mục gốc để tạo virtual environment và cài đặt tất cả các gói từ `uv.lock`:
+   Đầu tiên, hãy di chuyển vào thư mục dự án. Sau đó chạy lệnh để tạo virtual environment và cài đặt tất cả các gói từ `uv.lock`:
    ```bash
+   cd UIT-Tempo-Run-2026
    uv sync
+   ```
+3. **Kích hoạt môi trường ảo** (quan trọng trước khi chạy các lệnh/script tiếp theo, **luôn đảm bảo bạn đang ở trong thư mục `UIT-Tempo-Run-2026`**):
+   ```bash
+   source .venv/bin/activate
    ```
 
 ## 5. Hướng dẫn tải checkpoint hoặc tài nguyên bổ sung
@@ -128,6 +133,9 @@ Trong dự án có rất nhiều file script nhằm phục vụ các mục đíc
 
 ## 9. Lệnh chạy toàn bộ pipeline
 Để chạy toàn bộ quy trình từ đầu đến cuối một cách tự động, bạn chỉ cần gọi master script. Các tham số chạy cho toàn pipeline đã được thiết lập sẵn trong file này thành từng dòng rất rõ ràng và dễ tùy biến.
+
+> [!WARNING]
+> **Lưu ý cực kỳ quan trọng:** Bạn phải gọi lệnh thực thi pipeline khi **đang ở bên trong thư mục `UIT-Tempo-Run-2026`** (tức là đã chạy `cd UIT-Tempo-Run-2026`) để tránh lỗi đường dẫn script.
 
 Bạn có thể gọi file script trực tiếp (sẽ sử dụng cài đặt mặc định):
 ```bash
