@@ -96,7 +96,7 @@ if [ -n "$SMOOTHING_SIGMA" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --smoothing-sig
 if [ -n "$OVERLAP_THRESHOLD" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --overlap-threshold $OVERLAP_THRESHOLD"; fi
 if [ -n "$NUM_TASKS" ]; then RETRIEVE_ARGS="$RETRIEVE_ARGS --n $NUM_TASKS"; fi
 
-export NUM_CHUNKS=5
+export NUM_CHUNKS=20
 PYTHONPATH=. uv run python scripts/run_chunked.py \
   --tasks $TASKS_FILE \
   --out submission.json \
