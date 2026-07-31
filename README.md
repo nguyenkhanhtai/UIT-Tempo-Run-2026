@@ -137,12 +137,7 @@ Trong dự án có rất nhiều file script nhằm phục vụ các mục đíc
 > [!WARNING]
 > **Lưu ý cực kỳ quan trọng:** Bạn phải gọi lệnh thực thi pipeline khi **đang ở bên trong thư mục `UIT-Tempo-Run-2026`** (tức là đã chạy `cd UIT-Tempo-Run-2026`) để tránh lỗi đường dẫn script.
 
-Bạn có thể gọi file script trực tiếp (sẽ sử dụng cài đặt mặc định):
-```bash
-./scripts/run_pipeline.sh
-```
-
-Hoặc cấu hình linh hoạt thông qua các tham số truyền vào:
+Lệnh để chạy toàn pipeline:
 ```bash
 ./scripts/run_pipeline.sh \
     --video-root "đường_dẫn_chứa_video" \          # đường dẫn tới thư mục <dataset> ở mục 6
