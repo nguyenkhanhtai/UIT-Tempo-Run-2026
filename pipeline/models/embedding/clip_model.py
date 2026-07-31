@@ -18,11 +18,18 @@ class ClipModel(BaseEmbedding):
             model_name, pretrained=pretrained, precision=precision)
         self.model = self.model.to(self.device).eval()
         self.tokenizer = open_clip.get_tokenizer(model_name)
+        print(f"[CLIP MODEL] Name: {model_name}")
         try:
             tp = getattr(self.model, "text_projection", None)
-            self.dim = int(tp.shape[1]) if hasattr(tp, "shape") else int(getattr(tp, "out_features", 512))
-        except Exception:
+            if tp is not None:
+                self.dim = int(tp.shape[1]) if hasattr(tp, "shape") else int(getattr(tp, "out_features", 512))
+            else:
+                self.dim = int(getattr(self.model.text, "output_dim", 512))
+        except Exception as e:
+            print(f"[CLIP MODEL] Exception: {e}")
             self.dim = 512
+
+        print(f"CLIP DIM: {self.dim}")
 
     def encode_images(self, pil_images: list, batch_size=64) -> np.ndarray:
         torch = self.torch
